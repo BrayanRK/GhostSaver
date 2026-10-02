@@ -1,7 +1,7 @@
 {
   "saveMode": "forward",
   "antiDelete": true,
-  "downloadDir": "./media_guardada",
+  "downloadDir": "",
   "vvAliases": [
     "viewonce",
     "vo",
