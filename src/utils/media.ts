@@ -78,14 +78,14 @@ function safeDelete(p: string | null): void {
 }
 
 // ─── Guarda buffer en disco con nombre premium ────────────────────────────────
-function writeToDisk(buffer: Buffer, type: MediaType, senderJid: string, downloadDir: string): void {
+function writeToDisk(buffer: Buffer, type: MediaType, senderJid: string, downloadDir: string): string {
   const folder   = getMediaFolder(senderJid, type, downloadDir);
   const fileName = generatePremiumName(folder, type);
   const filePath = path.join(folder, fileName);
 
   if (type === "image") {
     fs.writeFileSync(filePath, buffer);
-    return;
+    return filePath;
   }
 
   // video/audio: temp → destino
@@ -96,6 +96,7 @@ function writeToDisk(buffer: Buffer, type: MediaType, senderJid: string, downloa
   } finally {
     safeDelete(tmp);
   }
+  return filePath;
 }
 
 import { Deco } from "./deco.js";
@@ -111,34 +112,43 @@ export async function processViewOnce(
   botJid: string,
   saveMode: SaveMode,
   downloadDir: string
-): Promise<boolean> {
+): Promise<string | boolean> {
   try {
     const buffer = await downloadMediaMessage(
       fakeMsg, "buffer", {},
-      { logger: undefined, reuploadRequest: sock.updateMediaMessage }
+      { logger: log as any, reuploadRequest: sock.updateMediaMessage }
     ) as Buffer;
 
     if (!buffer || !Buffer.isBuffer(buffer) || buffer.length < 1000) return false;
 
     const type = media.type;
+    let savedPath = "";
 
     if (saveMode === "storage" || saveMode === "forward") {
-      writeToDisk(buffer, type, senderJid, downloadDir);
+      savedPath = writeToDisk(buffer, type, senderJid, downloadDir);
     }
 
     if (saveMode === "forward" || saveMode === "chat") {
       const num     = senderJid.split("@")[0].replace(/\D/g, "");
-      const caption = Deco.header("VIEWONCE") + "\n" + Deco.listItem("Remitente", `+${num}`);
+      let caption = Deco.header("VIEWONCE") + "\n" + Deco.listItem("Remitente", `+${num}`);
+      if (savedPath) {
+        // Obtenemos solo el nombre de la carpeta y archivo para que no se vea la ruta larguisima en el movil
+        const shortPath = savedPath.split(/[\/\\]/).slice(-2).join("/");
+        caption += "\n" + Deco.listItem("Guardado en", shortPath);
+      }
+      
       if (type === "image") {
         await sock.sendMessage(botJid, { image: buffer, caption, viewOnce: false });
       } else if (type === "video") {
         await sock.sendMessage(botJid, { video: buffer, caption, viewOnce: false });
       } else if (type === "audio") {
+        // En audio no hay caption visual en ptt, mandamos un msj extra
+        await sock.sendMessage(botJid, { text: caption });
         await sock.sendMessage(botJid, { audio: buffer, mimetype: "audio/ogg; codecs=opus", ptt: true });
       }
     }
 
-    return true;
+    return savedPath || true;
   } catch (e) {
     log.error("ViewOnce:", (e as Error).message);
     return false;

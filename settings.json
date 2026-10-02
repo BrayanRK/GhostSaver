@@ -1,7 +1,7 @@
 {
   "saveMode": "forward",
   "antiDelete": true,
-  "downloadDir": "C:\\Users\\Draven\\GhostSaver",
+  "downloadDir": "./media_guardada",
   "vvAliases": [
     "viewonce",
     "vo",
