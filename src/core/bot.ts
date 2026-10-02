@@ -111,7 +111,7 @@ async function startBot(): Promise<void> {
     await new Promise((r) => setTimeout(r, 3000));
     try {
       const code = await sock.requestPairingCode(OWNER_NUMBER);
-      printPairingBanner(code);
+      await printPairingBanner(code);
     } catch (e) {
       log.error("Error al pedir código:", (e as Error).message);
     }
@@ -126,7 +126,7 @@ async function startBot(): Promise<void> {
     if (connection === "open") {
       sessionRetries = 0;
       const ownerNum = extractOwnerFromJid(sock.user?.id ?? OWNER_NUMBER);
-      printConnectedBanner(ownerNum, settings.prefixEnabled);
+      await printConnectedBanner(ownerNum, settings.prefixEnabled);
       registerAntiDelete(sock, msgStore, settings);
 
       // (Sin aviso molesto de superOwnerJid en consola)

@@ -4,51 +4,143 @@ import { useMultiFileAuthState } from "ultra-baileys";
 import config from "../config.js";
 import log from "../logger.js";
 
-const R    = "\x1b[0m";
-const B    = "\x1b[1m";
-const DIM  = "\x1b[2m";
-const C    = "\x1b[36m";
-const G    = "\x1b[32m";
-const Y    = "\x1b[33m";
-const M    = "\x1b[35m";
-const GRAY = "\x1b[90m";
-const W    = "\x1b[37m";
-const BG_M = "\x1b[45m\x1b[37m";
+const colors = {
+  reset:   '\x1b[0m',
+  white:   '\x1b[38;5;15m',
+  silver:  '\x1b[38;5;250m',
+  gray:    '\x1b[38;5;245m',
+  dark:    '\x1b[38;5;238m',
+  neonG:   '\x1b[38;5;46m',  // Hacker Green
+  neonC:   '\x1b[38;5;51m',  // Cyber Cyan
+  red:     '\x1b[38;5;196m',
+  gold:    '\x1b[38;5;220m',
+  dim:     '\x1b[2m',
+};
 
-export function printSetupBanner(): void {
-  console.clear();
-  console.log(`\n${C}  ╭────────────────────────────────────╮${R}`);
-  console.log(`${C}  │   ${B}${W}G H O S T S A V E R   ${B}${Y}P R O${C}    │${R}`);
-  console.log(`${C}  ╰────────────────────────────────────╯${R}`);
-  console.log(`\n  ${GRAY}⚡ Developer :${R} ${B}${W}BrayanRK${R}`);
-  console.log(`  ${GRAY}⚡ Estado    :${R} ${B}${Y}Configuración Inicial${R}\n`);
+const WIDTH = 100;
+
+const HERO_LOGO = [
+  '                                                                         ',
+  '         ________  ______  ________________ ___ _    ____________        ',
+  '        / ____/ / / / __ \\/ ___/_  __/ ___//   | |  / / ____/ __ \\       ',
+  '       / / __/ /_/ / / / /\\__ \\ / /  \\__ \\/ /| | | / / __/ / /_/ /       ',
+  '      / /_/ / __  / /_/ /___/ // /  ___/ / ___ | |/ / /___/ _, _/        ',
+  '      \\____/_/ /_/\\____//____//_/  /____/_/  |_|___/_____/_/ |_|         ',
+  '                                                                         ',
+  '                          .-.                                            ',
+  '                         (o o)                                           ',
+  '                         | O \\                                           ',
+  '                          \\   \\                                          ',
+  '                           `~~~\'                                         ',
+  '                                                                         ',
+  '                    GUARDIAN ACTIVATED                                   ',
+  '                                                                         '
+];
+
+function stripAnsi(value: string) {
+  return String(value).replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, "");
 }
 
-export function printConnectedBanner(ownerNumber: string, prefixEnabled: boolean): void {
-  console.clear();
-  const prefixStr = prefixEnabled ? `[ ${config.prefix} ] Activo` : "Desactivado";
-  console.log(`\n${G}  ╭────────────────────────────────────╮${R}`);
-  console.log(`${G}  │   ${B}${W}G H O S T S A V E R   ${B}${Y}P R O${G}    │${R}`);
-  console.log(`${G}  ╰────────────────────────────────────╯${R}`);
-  console.log(`\n  ${GRAY}➤${R} ${W}ESTADO DE CONEXIÓN:${R} ${B}${G}ONLINE 🟢${R}\n`);
-  console.log(`  ${C}├─ 👤 Owner   :${R} ${Y}+${ownerNumber}${R}`);
-  console.log(`  ${C}├─ ⚡ Prefijo :${R} ${Y}${prefixStr}${R}`);
-  console.log(`  ${C}└─ 👨‍💻 Dev     :${R} ${Y}BrayanRK${R}\n`);
-  console.log(`  ${GRAY}El guardián está activo y esperando comandos...${R}\n`);
+function line(text = "", color = colors.white) {
+  const raw = stripAnsi(text);
+  const size = Math.max(0, WIDTH - raw.length);
+  return `${colors.dark}│${colors.reset} ${color}${text}${colors.reset}${" ".repeat(size)} ${colors.dark}│${colors.reset}`;
 }
 
-export function printPairingBanner(code: string): void {
+function centerLine(text = "", color = colors.white) {
+  const raw = stripAnsi(text);
+  const left = Math.max(0, Math.floor((WIDTH - raw.length) / 2));
+  const right = Math.max(0, WIDTH - raw.length - left);
+  return `${colors.dark}│${colors.reset} ${" ".repeat(left)}${color}${text}${colors.reset}${" ".repeat(right)} ${colors.dark}│${colors.reset}`;
+}
+
+function panel(title: string, rows: {text: string, color: string}[] = []) {
+  console.log(`${colors.neonG}╭${"─".repeat(WIDTH + 2)}╮${colors.reset}`);
+  console.log(line(title, colors.white));
+  console.log(`${colors.neonC}├${"─".repeat(WIDTH + 2)}┤${colors.reset}`);
+  for (const row of rows) console.log(line(row.text, row.color || colors.gray));
+  console.log(`${colors.neonG}╰${"─".repeat(WIDTH + 2)}╯${colors.reset}`);
+}
+
+async function sleep(ms: number) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function loadingScreen(taskName: string) {
+  const frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+  let i = 0;
+  for (let step = 0; step <= 20; step++) {
+    const bar = '█'.repeat(step) + '░'.repeat(20 - step);
+    process.stdout.write(`\r  ${colors.neonC}${frames[i]}${colors.reset}  ${colors.white}${taskName}${colors.reset}  ${colors.neonG}[${bar}]${colors.reset}  ${colors.gold}${step * 5}%${colors.reset}`);
+    i = (i + 1) % frames.length;
+    await sleep(40);
+  }
+  process.stdout.write(`\r  ${colors.neonG}✔${colors.reset}  ${colors.white}${taskName}${colors.reset}  ${colors.neonG}[${'█'.repeat(20)}]${colors.reset}  ${colors.gold}100%${colors.reset}\n\n`);
+}
+
+async function renderHero(sessionReady = false) {
+  const logoColors = [colors.neonG, colors.neonC, colors.white, colors.silver];
+
+  console.log(`${colors.neonG}╭${"─".repeat(WIDTH + 2)}╮${colors.reset}`);
+  console.log(centerLine("GHOSTSAVER PRO", colors.neonG));
+  console.log(centerLine("Hacker / Guardian Edition", colors.neonC));
+  console.log(centerLine("Powered by BrayanRK", colors.gold));
+  console.log(centerLine(`${colors.neonG}✦${colors.reset} ${sessionReady ? "Sesion de Ghost interceptada" : "Iniciando sistema de vinculacion"} ${colors.neonG}✦${colors.reset}`, colors.gray));
+  console.log(`${colors.neonC}├${"─".repeat(WIDTH + 2)}┤${colors.reset}`);
+  
+  for (let i = 0; i < HERO_LOGO.length; i += 1) {
+    const tint = logoColors[i % logoColors.length];
+    console.log(centerLine(HERO_LOGO[i], tint));
+    await sleep(15); // Animación tipo scanline
+  }
+  
+  console.log(`${colors.neonG}├${"─".repeat(WIDTH + 2)}┤${colors.reset}`);
+  console.log(centerLine(`${colors.neonC}╭${colors.reset}${"─".repeat(14)}${colors.neonC}╮${colors.reset} ${colors.gray}System${colors.reset} ${colors.neonC}╭${colors.reset}${"─".repeat(14)}${colors.neonC}╮${colors.reset}`, colors.gray));
+  console.log(centerLine(`${colors.neonC}│${colors.reset} ${sessionReady ? colors.white + "ONLINE" : colors.white + " BOOT "} ${colors.neonC}│${colors.reset} ${colors.gray}GHOSTSAVER PRO${colors.reset} ${colors.neonC}│${colors.reset} ${colors.white} PROTECTED${colors.reset} ${colors.neonC}│${colors.reset}`, colors.gray));
+  console.log(centerLine(`${colors.neonC}╰${colors.reset}${"─".repeat(14)}${colors.neonC}╯${colors.reset} ${colors.gray}•${colors.reset} ${colors.gray}SAFE${colors.reset} ${colors.gray}•${colors.reset}`, colors.gray));
+  console.log(`${colors.neonG}╰${"─".repeat(WIDTH + 2)}╯${colors.reset}`);
+  console.log("");
+}
+
+export async function printSetupBanner(): Promise<void> {
   console.clear();
-  console.log(`\n${M}  ╭────────────────────────────────────╮${R}`);
-  console.log(`${M}  │   ${B}${W}G H O S T S A V E R   ${B}${Y}P R O${M}    │${R}`);
-  console.log(`${M}  ╰────────────────────────────────────╯${R}`);
-  console.log(`\n  ${GRAY}➤${R} ${W}CÓDIGO DE VINCULACIÓN:${R}`);
+  await loadingScreen("Iniciando Core de GhostSaver...");
+  await renderHero(false);
+  panel("Inicializacion del Guardian", [
+    { text: "✦  Ingresa tu numero para interceptar la sesion de WhatsApp", color: colors.neonC },
+    { text: "✦  Solo necesitas hacer esto UNA VEZ.", color: colors.gold },
+  ]);
+  console.log("");
+}
+
+export async function printPairingBanner(code: string): Promise<void> {
+  console.clear();
+  await loadingScreen("Generando Codigo de Encriptacion...");
+  await renderHero(false);
   const formatCode = code.length === 8 ? code.slice(0,4) + "-" + code.slice(4) : code;
-  console.log(`\n      ${B}${BG_M}  ${formatCode}  ${R}\n`);
-  console.log(`  ${GRAY}1.${R} Abre WhatsApp en tu celular`);
-  console.log(`  ${GRAY}2.${R} Toca "Dispositivos vinculados"`);
-  console.log(`  ${GRAY}3.${R} Toca "Vincular con número de teléfono"`);
-  console.log(`  ${GRAY}4.${R} Escribe el código gigante de arriba\n`);
+  panel("Paso Final - Vinculacion", [
+    { text: "✦  Abre WhatsApp en tu celular principal", color: colors.silver },
+    { text: "✦  Toca \"Dispositivos vinculados\"", color: colors.silver },
+    { text: "✦  Toca \"Vincular con numero de telefono\"", color: colors.silver },
+    { text: `✦  Ingresa este codigo maestro:  ${formatCode}  `, color: colors.neonG }
+  ]);
+  console.log("");
+}
+
+export async function printConnectedBanner(ownerNumber: string, prefixEnabled: boolean): Promise<void> {
+  console.clear();
+  await loadingScreen("Sincronizando GhostSaver con WhatsApp...");
+  await renderHero(true);
+  const prefixStr = prefixEnabled ? `[ ${config.prefix} ] Activo` : "Desactivado";
+  panel("Conexion Establecida", [
+    { text: "Bot: GHOSTSAVER PRO", color: colors.neonG },
+    { text: "Estado: ONLINE y PROTEGIDO", color: colors.white },
+    { text: `Owner: +${ownerNumber}`, color: colors.neonC },
+    { text: `Prefijo: ${prefixStr}`, color: colors.gold },
+    { text: "Seguridad: AntiDelete [Activo] | Comandos: .vv", color: colors.gray },
+    { text: "Dev: BrayanRK", color: colors.neonG },
+  ]);
+  console.log("");
 }
 
 function prompt(text: string): Promise<string> {
@@ -67,20 +159,20 @@ export async function getOwnerNumber(): Promise<string> {
     } catch { /* corrupto, re-preguntar */ }
   }
 
-  printSetupBanner();
+  await printSetupBanner();
 
   let number = "";
   while (!number || !/^\d{10,15}$/.test(number)) {
     number = await prompt(
-      `  ${C}➤ Tu número (con código de país, sin +):${R}\n  ${Y}Ej: 5732XXXXXXXX${R} > `
+      `  ${colors.neonG}➤${colors.white} Tu numero (con codigo de pais, sin +):${colors.reset}\n  ${colors.gold}Ej: 5732XXXXXXXX${colors.reset} > `
     );
     if (!/^\d{10,15}$/.test(number))
-      console.log(`\n  \x1b[91m✖ Número inválido.\n${R}`);
+      console.log(`\n  ${colors.red}✖ Numero invalido.${colors.reset}\n`);
   }
 
   fs.writeFileSync(file, JSON.stringify({ ownerNumber: number }, null, 2));
-  console.log(`\n  ${G}✔ Guardado: +${number}${R}`);
-  console.log(`  ${GRAY}${DIM}(No te volverá a preguntar)\n${R}`);
+  console.log(`\n  ${colors.neonG}✔ Guardado: +${number}${colors.reset}`);
+  console.log(`  ${colors.gray}${colors.dim}(No te volvera a preguntar)\n${colors.reset}`);
 
   return number;
 }
@@ -90,10 +182,10 @@ export function clearSession(): void {
     const dir = config.sessionDir;
     if (fs.existsSync(dir)) {
       fs.rmSync(dir, { recursive: true, force: true });
-      log.warn("Sesión borrada.");
+      log.warn("Sesion borrada.");
     }
   } catch (e) {
-    log.error("No se pudo borrar sesión:", (e as Error).message);
+    log.error("No se pudo borrar sesion:", (e as Error).message);
   }
 }
 
