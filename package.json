@@ -1,14 +1,25 @@
 {
-  "name": "draven-hack",
-  "version": "1.0.0",
+  "name": "ghost-saver",
+  "version": "2.0.0",
+  "description": "GhostSaver — Silent WhatsApp ViewOnce saver. Premium edition.",
   "type": "module",
-  "main": "index.js",
+  "main": "src/core/bot.ts",
   "scripts": {
-    "start": "node index.js"
+    "start": "tsx src/core/bot.ts",
+    "dev": "tsx --watch src/core/bot.ts",
+    "build": "tsc",
+    "start:build": "node dist/core/bot.js"
   },
   "dependencies": {
-    "@whiskeysockets/baileys": "^7.0.0-rc.3",
-    "pino": "^9.0.0",
-    "qrcode-terminal": "^0.12.0"
+    "ultra-baileys": "github:russellxz/ultra-baileys",
+    "pino": "^9.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "tsx": "^4.15.0",
+    "@types/node": "^20.0.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
   }
 }

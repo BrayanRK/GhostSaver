@@ -1,5 +1,23 @@
-node_modules/
+# ── Sesión y credenciales ──────────────────────────────────────
 auth_info/
 session.json
-bot.log
-commands/private/
+
+# ── Configuración persistente (se genera automáticamente) ──────
+# settings.json se INCLUYE en el repo para compartir defaults
+# Si quieres ignorarlo, descomenta la siguiente línea:
+# settings.json
+
+# ── Build de TypeScript ────────────────────────────────────────
+dist/
+
+# ── Node ───────────────────────────────────────────────────────
+node_modules/
+package-lock.json
+
+# ── Archivos temporales ────────────────────────────────────────
+*.log
+.ghost_tmp/
+
+# ── OS ─────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db

@@ -1,0 +1,12 @@
+{
+  "saveMode": "forward",
+  "antiDelete": true,
+  "downloadDir": "C:\\Users\\Draven\\GhostSaver",
+  "vvAliases": [
+    "viewonce",
+    "vo",
+    "ver",
+    "test"
+  ],
+  "prefixEnabled": false
+}

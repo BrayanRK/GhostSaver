@@ -1,291 +1,123 @@
-# 🏴‍☠️ Draven_Hack
+# 👻 GhostSaver v2.0
 
-> Bot de WhatsApp basado en **Baileys** con sistema modular, aliases dinámicos, actualización remota y herramientas de administración para el Owner y SuperOwner.
-
----
-
-# 🚀 Características
-
-### 👁️ Recuperación de View Once
-
-Permite recuperar contenido de "Ver una sola vez":
-
-* 📸 Imágenes
-* 🎥 Videos
-* 🎵 Audios
+> **Bot de WhatsApp silencioso para capturar y guardar mensajes de una sola vista (ViewOnce).**  
+> Solo el owner y el super owner pueden usarlo. Sin respuestas en chats ajenos. Sin rastro.
 
 ---
 
-### 🏷️ Sistema de Aliases
+## ✨ Características
 
-Añade nuevos aliases directamente desde WhatsApp.
+- 👻 **Silencioso total** — nunca responde en grupos ni chats ajenos
+- 📸 **Captura automática** — guarda ViewOnce de imágenes, videos y audios al instante
+- 💾 **3 modos de guardado** — almacenamiento local, reenvío al bot, o ambos
+- 🗑️ **AntiDelete** — detecta mensajes eliminados y te los reenvía en privado
+- 📱 **Termux + PC** — detecta la plataforma automáticamente
+- 🔧 **TypeScript estricto** — tipado completo, sin `any` ocultos
+- ⚡ **ultra-baileys** — versión mejorada de Baileys
+- 🔄 **Auto-reload** — recarga comandos sin reiniciar al modificar archivos
+- 💿 **Persistencia** — el modo de guardado y el estado del AntiDelete sobreviven reinicios
 
-Ejemplo:
+---
 
+## 🚀 Instalación
+
+### Termux (Android)
 ```bash
-addalias menu help
-addalias vv ver
-```
-
-Los aliases se cargan automáticamente y aparecen en el menú.
-
----
-
-### 👑 Sistema Owner + SuperOwner
-
-El bot soporta dos niveles de acceso:
-
-#### Owner
-
-* Se obtiene automáticamente desde la sesión.
-* Es el propietario de la instancia instalada.
-
-#### SuperOwner
-
-* Configurado desde `config.js`.
-* Tiene acceso a todas las instancias del bot.
-* Compatible con números normales y LID de WhatsApp.
-
----
-
-### 🔄 Actualizaciones Remotas
-
-Los usuarios pueden actualizar el bot desde WhatsApp.
-
-```bash
-update
-```
-
-El sistema ejecuta:
-
-```bash
-git pull
-npm install
-```
-
-y reinicia automáticamente el bot.
-
----
-
-### ♻️ Reinicio Remoto
-
-```bash
-restart
-```
-
-Reinicia el bot automáticamente.
-
-Compatible con PM2.
-
----
-
-### 📂 Sistema Modular
-
-Los comandos se cargan automáticamente desde las carpetas:
-
-```text
-commands/
-```
-
-No es necesario editar el núcleo del bot para añadir nuevas funciones.
-
----
-
-# 📂 Estructura del Proyecto
-
-```text
-Draven_Hack/
-├── auth_info/
-├── commands/
-│   ├── Añadidor_de_Aliases/
-│   │   └── addalias.js
-│   ├── media/
-│   │   └── vv.js
-│   ├── menu/
-│   │   └── menu.js
-│   ├── Owner/
-│   │   ├── restart.js
-│   │   └── update.js
-│   └── private/
-│       └── push.js
-├── plugins/
-│   └── antiDelete.js
-├── config.js
-├── index.js
-├── logger.js
-└── package.json
-```
-
----
-
-# 📥 Instalación
-
-## 📱 Android (Termux)
-
-```bash
-pkg update && pkg upgrade -y
-```
-```bash
-pkg install git nodejs -y
-```
-```bash
+# Prerequisitos
+pkg update && pkg install nodejs git -y
 termux-setup-storage
-```
-```bash
-git clone https://github.com/BrayanRK/Draven_Hack
-```
-```bash
-cd Draven_Hack
-```
-```bash
+
+# Clonar e instalar
+git clone https://github.com/BrayanRK/GhostSaver.git
+cd GhostSaver
 npm install
-```
-```bash
-node index.js
+
+# Iniciar
+npm start
 ```
 
----
-
-## 💻 Windows / Linux
-
+### PC (Windows / Linux)
 ```bash
-git clone https://github.com/BrayanRK/Draven_Hack
-```
-```bash
-cd Draven_Hack
-```
-```bash
+git clone https://github.com/BrayanRK/GhostSaver.git
+cd GhostSaver
 npm install
+npm start
 ```
-```bash
-node index.js
+
+> **Node.js >= 20** requerido.
+
+---
+
+## ⚙️ Configuración
+
+Edita [`src/config.ts`](src/config.ts) para cambiar el super owner y otras opciones:
+
+```ts
+superOwner: "5732230904061",  // ← Tu número (con código de país, sin +)
+prefix: ".",                   // Prefijo de comandos
+queueDelay: 1200,              // Delay anti-ban (ms)
 ```
 
 ---
 
-# ⚙️ PM2 (Recomendado)
+## 📋 Comandos
 
-Instalar PM2:
+Todos los comandos responden **solo en el chat del bot** (chat "Tú").
 
-```bash
-npm install -g pm2
-```
+| Comando | Aliases | Descripción |
+|---------|---------|-------------|
+| `.vv` | `viewonce`, `vo`, `ver` | Guarda el ViewOnce citado |
+| `.config` | `cfg`, `status` | Panel de estado del bot |
+| `.saveset <modo>` | `modo`, `savemode` | Cambia el modo de guardado |
+| `.antidelete <on/off>` | `ad` | Activa/desactiva el AntiDelete |
+| `.alias <list/add/remove>` | `aliases` | Gestiona aliases del `.vv` |
+| `.menu` | `help`, `comandos` | Lista todos los comandos |
+| `.restart` | `reboot` | Reinicia el bot |
+| `.update` | `actualizar` | Actualiza desde git |
 
-Iniciar el bot:
+### Modos de guardado (`.saveset`)
 
-```bash
-pm2 start index.js --name draven
-```
-
-Ver logs:
-
-```bash
-pm2 logs draven
-```
-
-Guardar configuración:
-
-```bash
-pm2 save
-```
+| Modo | Descripción |
+|------|-------------|
+| `storage` | Solo guarda en almacenamiento interno |
+| `forward` | Guarda en disco **y** reenvía al chat del bot |
+| `chat` | Solo reenvía al chat del bot (sin guardar en disco) |
 
 ---
 
-# 📋 Comandos Disponibles
+## 📁 Estructura de archivos guardados
 
-### Menú
-
-```bash
-menu
 ```
+GhostSaver/
+└── <número_del_contacto>/
+    ├── img_1720000000000.jpg
+    ├── vid_1720000001000.mp4
+    └── aud_1720000002000.ogg
+```
+
+En Termux: `/storage/emulated/0/GhostSaver/`  
+En PC: `~/GhostSaver/`
 
 ---
 
-### Recuperar View Once
+## 🛡️ Seguridad
 
-```bash
-vv
-```
-
----
-
-### Añadir Alias
-
-```bash
-addalias [comando] [alias]
-```
-
-Ejemplo:
-
-```bash
-addalias menu help
-```
+- El bot **ignora silenciosamente** cualquier mensaje que no sea del owner o super owner
+- Las credenciales de sesión están en `auth_info/` (excluido del repo via `.gitignore`)
+- El `superOwner` está hardcodeado en `config.ts` para que siempre tenga acceso
 
 ---
 
-### Actualizar Bot
+## 🏗️ Tecnologías
 
-```bash
-update
-```
-
----
-
-### Reiniciar Bot
-
-```bash
-restart
-```
+- **Runtime:** Node.js 20+ con `tsx` (sin paso de compilación)
+- **WhatsApp:** ultra-baileys
+- **Lenguaje:** TypeScript estricto
+- **Persistencia:** `settings.json` (JSON plano)
 
 ---
 
-# 🔐 Seguridad
+## 👤 Créditos
 
-⚠️ Nunca compartas:
-
-```text
-auth_info/
-session.json
-```
-
-Estos archivos contienen las credenciales de tu sesión de WhatsApp.
-
----
-
-# ⚠️ Descargo de Responsabilidad
-
-Este proyecto ha sido desarrollado con fines educativos, de investigación y uso personal.
-
-El autor no promueve, aprueba ni se hace responsable del uso indebido de esta herramienta, incluyendo pero no limitado a:
-
-* Violación de la privacidad de terceros.
-* Acceso no autorizado a información ajena.
-* Incumplimiento de los términos de servicio de WhatsApp.
-* Actividades ilegales o contrarias a la legislación vigente.
-
-El uso de este software es responsabilidad exclusiva del usuario final.
-
-Al utilizar Draven_Hack, aceptas que cualquier consecuencia derivada de su uso recaerá únicamente sobre quien lo ejecute o distribuya.
-
----
-
-# 🔐 Advertencia de Seguridad
-
-Nunca compartas ni publiques los siguientes archivos:
-
-```text
-auth_info/
-session.json
-```
-
-Estos contienen credenciales y claves necesarias para acceder a tu sesión de WhatsApp.
-
-La exposición de estos archivos puede permitir que terceros obtengan acceso completo a tu cuenta.
-
-
-# 👨‍💻 Autor
-
-**BrayanRK**
-
-GitHub:
-https://github.com/BrayanRK
+Desarrollado por **Brayan** / bytebot  
+GhostSaver v2.0 — All rights reserved
