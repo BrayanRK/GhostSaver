@@ -1,4 +1,4 @@
-﻿import fs from "fs";
+import fs from "fs";
 import readline from "readline";
 import { useMultiFileAuthState } from "ultra-baileys";
 import config from "../config.js";
@@ -10,129 +10,321 @@ const colors = {
   silver:  '\x1b[38;5;250m',
   gray:    '\x1b[38;5;245m',
   dark:    '\x1b[38;5;238m',
-  neonG:   '\x1b[38;5;46m',  // Hacker Green
-  neonC:   '\x1b[38;5;51m',  // Cyber Cyan
+  neonG:   '\x1b[38;5;46m',
+  neonG2:  '\x1b[38;5;48m',
+  neonG3:  '\x1b[38;5;49m',
+  neonC:   '\x1b[38;5;51m',
   red:     '\x1b[38;5;196m',
   gold:    '\x1b[38;5;220m',
   dim:     '\x1b[2m',
 };
 
-const WIDTH = 100;
+// ───────────────────────── Ancho dinamico (Termux friendly) ─────────────────────────
 
-const HERO_LOGO = [
-  '                                                                         ',
-  '         ________  ______  ________________ ___ _    ____________        ',
-  '        / ____/ / / / __ \\/ ___/_  __/ ___//   | |  / / ____/ __ \\       ',
-  '       / / __/ /_/ / / / /\\__ \\ / /  \\__ \\/ /| | | / / __/ / /_/ /       ',
-  '      / /_/ / __  / /_/ /___/ // /  ___/ / ___ | |/ / /___/ _, _/        ',
-  '      \\____/_/ /_/\\____//____//_/  /____/_/  |_|___/_____/_/ |_|         ',
-  '                                                                         ',
-  '                          .-.                                            ',
-  '                         (o o)                                           ',
-  '                         | O \\                                           ',
-  '                          \\   \\                                          ',
-  '                           `~~~\'                                         ',
-  '                                                                         ',
-  '                    GUARDIAN ACTIVATED                                   ',
-  '                                                                         '
-];
+const isTTY = Boolean(process.stdout.isTTY);
+const cols = () => process.stdout.columns || 80;
+// Ancho interior del cuadro. El cuadro total mide W + 4, siempre menor al ancho de la terminal.
+const getWidth = () => Math.max(30, Math.min(100, cols() - 5));
+
+const sleep = (ms: number): Promise<void> =>
+  isTTY ? new Promise((resolve) => setTimeout(resolve, ms)) : Promise.resolve();
 
 function stripAnsi(value: string) {
   return String(value).replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, "");
 }
 
-function line(text = "", color = colors.white) {
-  const raw = stripAnsi(text);
-  const size = Math.max(0, WIDTH - raw.length);
-  return `${colors.dark}│${colors.reset} ${color}${text}${colors.reset}${" ".repeat(size)} ${colors.dark}│${colors.reset}`;
+// Corta texto en varias lineas segun el ancho (con sangria en las continuaciones)
+function wrap(text: string, width: number, indent = 3): string[] {
+  const words = text.split(" ").filter(Boolean);
+  const lines: string[] = [];
+  let cur = "";
+  const limit = () => (lines.length === 0 ? width : Math.max(8, width - indent));
+
+  for (const word of words) {
+    let w = word;
+    while (true) {
+      if (!cur && w.length <= limit()) { cur = w; break; }
+      if (cur && cur.length + 1 + w.length <= limit()) { cur += " " + w; break; }
+      if (cur) { lines.push(cur); cur = ""; continue; }
+      const lim = limit();
+      lines.push(w.slice(0, lim));
+      w = w.slice(lim);
+      if (!w) break;
+    }
+  }
+  if (cur) lines.push(cur);
+  return lines.map((l, i) => (i === 0 ? l : " ".repeat(indent) + l));
 }
 
-function centerLine(text = "", color = colors.white) {
+// ───────────────────────── Bloques de dibujo ─────────────────────────
+
+function border(kind: "top" | "mid" | "bottom", color: string): string {
+  const W = getWidth();
+  const [l, r] = kind === "top" ? ["╭", "╮"] : kind === "mid" ? ["├", "┤"] : ["╰", "╯"];
+  return `${color}${l}${"─".repeat(W + 2)}${r}${colors.reset}`;
+}
+
+function boxLines(text = "", color = colors.white): string[] {
+  const W = getWidth();
+  const parts = text ? wrap(text, W) : [""];
+  return parts.map(
+    (l) =>
+      `${colors.dark}│${colors.reset} ${color}${l}${colors.reset}${" ".repeat(Math.max(0, W - l.length))} ${colors.dark}│${colors.reset}`
+  );
+}
+
+function centered(text = "", color = colors.white): string {
+  const W = getWidth();
   const raw = stripAnsi(text);
-  const left = Math.max(0, Math.floor((WIDTH - raw.length) / 2));
-  const right = Math.max(0, WIDTH - raw.length - left);
+  const left = Math.max(0, Math.floor((W - raw.length) / 2));
+  const right = Math.max(0, W - raw.length - left);
   return `${colors.dark}│${colors.reset} ${" ".repeat(left)}${color}${text}${colors.reset}${" ".repeat(right)} ${colors.dark}│${colors.reset}`;
 }
 
-function panel(title: string, rows: {text: string, color: string}[] = []) {
-  console.log(`${colors.neonG}╭${"─".repeat(WIDTH + 2)}╮${colors.reset}`);
-  console.log(line(title, colors.white));
-  console.log(`${colors.neonC}├${"─".repeat(WIDTH + 2)}┤${colors.reset}`);
-  for (const row of rows) console.log(line(row.text, row.color || colors.gray));
-  console.log(`${colors.neonG}╰${"─".repeat(WIDTH + 2)}╯${colors.reset}`);
-}
-
-async function sleep(ms: number) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-async function loadingScreen(taskName: string) {
-  const frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
-  let i = 0;
-  for (let step = 0; step <= 20; step++) {
-    const bar = '█'.repeat(step) + '░'.repeat(20 - step);
-    process.stdout.write(`\r  ${colors.neonC}${frames[i]}${colors.reset}  ${colors.white}${taskName}${colors.reset}  ${colors.neonG}[${bar}]${colors.reset}  ${colors.gold}${step * 5}%${colors.reset}`);
-    i = (i + 1) % frames.length;
-    await sleep(40);
+async function printLines(lines: string[], delay = 0) {
+  for (const l of lines) {
+    console.log(l);
+    if (delay) await sleep(delay);
   }
-  process.stdout.write(`\r  ${colors.neonG}✔${colors.reset}  ${colors.white}${taskName}${colors.reset}  ${colors.neonG}[${'█'.repeat(20)}]${colors.reset}  ${colors.gold}100%${colors.reset}\n\n`);
+}
+
+function panelLines(title: string, rows: { text: string; color?: string }[] = []): string[] {
+  const out: string[] = [];
+  out.push(border("top", colors.neonG));
+  out.push(...boxLines(title, colors.white));
+  out.push(border("mid", colors.neonC));
+  for (const row of rows) out.push(...boxLines(row.text, row.color || colors.gray));
+  out.push(border("bottom", colors.neonG));
+  return out;
+}
+
+async function panel(title: string, rows: { text: string; color?: string }[] = []) {
+  await printLines(panelLines(title, rows), 22);
+}
+
+// ───────────────────────── Logo ─────────────────────────
+
+const GHOST_ART = [
+  "    ▄████▄    ",
+  "  ▄████████▄  ",
+  " ████████████ ",
+  " ██  ████  ██ ",
+  " ██  ████  ██ ",
+  " ████▀▀▀▀████ ",
+  " ████████████ ",
+  " ██▀██▀▀██▀██ ",
+];
+
+const GHOST_GRAD = [
+  colors.white, colors.white, colors.silver, colors.neonC,
+  colors.neonC, colors.neonG3, colors.neonG2, colors.neonG,
+];
+
+const TITLE_GRAD = [colors.neonG, colors.neonG2, colors.neonG3, colors.neonC, colors.neonC];
+
+// Fuente de bloques 5x5 para el titulo en pantallas anchas
+const FONT: Record<string, string[]> = {
+  G: [" ████", "█    ", "█  ██", "█   █", " ████"],
+  H: ["█   █", "█   █", "█████", "█   █", "█   █"],
+  O: [" ███ ", "█   █", "█   █", "█   █", " ███ "],
+  S: [" ████", "█    ", " ███ ", "    █", "████ "],
+  T: ["█████", "  █  ", "  █  ", "  █  ", "  █  "],
+  A: [" ███ ", "█   █", "█████", "█   █", "█   █"],
+  V: ["█   █", "█   █", "█   █", " █ █ ", "  █  "],
+  E: ["█████", "█    ", "████ ", "█    ", "█████"],
+  R: ["████ ", "█   █", "████ ", "█  █ ", "█   █"],
+};
+
+function bigWord(word: string): string[] {
+  return [0, 1, 2, 3, 4].map((r) =>
+    word.split("").map((ch) => FONT[ch][r]).join(" ")
+  );
 }
 
 async function renderHero(sessionReady = false) {
-  const logoColors = [colors.neonG, colors.neonC, colors.white, colors.silver];
+  const W = getWidth();
+  const wide = W >= 64;
+  const out: string[] = [];
 
-  console.log(`${colors.neonG}╭${"─".repeat(WIDTH + 2)}╮${colors.reset}`);
-  console.log(centerLine("GHOSTSAVER PRO", colors.neonG));
-  console.log(centerLine("Hacker / Guardian Edition", colors.neonC));
-  console.log(centerLine("Powered by BrayanRK", colors.gold));
-  console.log(centerLine(`${colors.neonG}✦${colors.reset} ${sessionReady ? "Sesion de Ghost interceptada" : "Iniciando sistema de vinculacion"} ${colors.neonG}✦${colors.reset}`, colors.gray));
-  console.log(`${colors.neonC}├${"─".repeat(WIDTH + 2)}┤${colors.reset}`);
-  
-  for (let i = 0; i < HERO_LOGO.length; i += 1) {
-    const tint = logoColors[i % logoColors.length];
-    console.log(centerLine(HERO_LOGO[i], tint));
-    await sleep(15); // Animación tipo scanline
+  out.push(border("top", colors.neonG));
+  out.push(centered(""));
+  GHOST_ART.forEach((l, i) => out.push(centered(l, GHOST_GRAD[i])));
+  out.push(centered(""));
+
+  if (wide) {
+    bigWord("GHOSTSAVER").forEach((l, i) => out.push(centered(l, TITLE_GRAD[i])));
+  } else {
+    out.push(centered("G H O S T S A V E R", colors.neonG));
+    out.push(centered("─".repeat(Math.min(19, W)), colors.dark));
   }
-  
-  console.log(`${colors.neonG}├${"─".repeat(WIDTH + 2)}┤${colors.reset}`);
-  console.log(centerLine(`${colors.neonC}╭${colors.reset}${"─".repeat(14)}${colors.neonC}╮${colors.reset} ${colors.gray}System${colors.reset} ${colors.neonC}╭${colors.reset}${"─".repeat(14)}${colors.neonC}╮${colors.reset}`, colors.gray));
-  console.log(centerLine(`${colors.neonC}│${colors.reset} ${sessionReady ? colors.white + "ONLINE" : colors.white + " BOOT "} ${colors.neonC}│${colors.reset} ${colors.gray}GHOSTSAVER PRO${colors.reset} ${colors.neonC}│${colors.reset} ${colors.white} PROTECTED${colors.reset} ${colors.neonC}│${colors.reset}`, colors.gray));
-  console.log(centerLine(`${colors.neonC}╰${colors.reset}${"─".repeat(14)}${colors.neonC}╯${colors.reset} ${colors.gray}•${colors.reset} ${colors.gray}SAFE${colors.reset} ${colors.gray}•${colors.reset}`, colors.gray));
-  console.log(`${colors.neonG}╰${"─".repeat(WIDTH + 2)}╯${colors.reset}`);
-  console.log("");
+
+  out.push(centered(""));
+  out.push(centered("WhatsApp Session Guardian", colors.neonC));
+  out.push(border("mid", colors.neonC));
+  out.push(centered("Developed by BrayanRK", colors.gold));
+  out.push(centered(sessionReady ? "Sesion detectada" : "Esperando vinculacion", colors.gray));
+
+  const state = sessionReady ? "ONLINE" : "BOOT";
+  const status =
+    W >= 44
+      ? `${colors.neonG}● ${state}${colors.reset}   ${colors.gray}◆ GHOSTSAVER PRO   ◆ PROTECTED${colors.reset}`
+      : `${colors.neonG}● ${state}${colors.reset}   ${colors.gray}◆ PROTECTED${colors.reset}`;
+  out.push(centered(status));
+  out.push(border("bottom", colors.neonG));
+  out.push("");
+
+  await printLines(out, 28); // el banner baja linea por linea
 }
+
+// ───────────────────────── Pantalla de carga ─────────────────────────
+
+const FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+
+const LOADING_MSGS = [
+  "Saltando firewall del corazon",
+  "Burlando antivirus emocional",
+  "Probando clave: te_quiero123",
+  "Descifrando mensajes en visto",
+  "Evadiendo la friendzone",
+  "Inyectando carisma.exe",
+  "Escaneando puertos del alma",
+  "Desencriptando indirectas",
+  "Bypass de excusas: estoy ocupada",
+  "Rastreando ultima vez en linea",
+  "Compilando flores.js",
+  "Reenviando hola por 47va vez",
+  "Cargando valentia al 1%",
+  "Ocultando mi IP sentimental",
+  "Descargando mas ganas de ella",
+];
+
+const HACK_TARGET = "Hackeando el corazon de ella";
+const HACK_ERRORS = [
+  "ACCESO DENEGADO: no se pudo hackear el corazon de ella",
+  "Causa: amor imposible (error 404: correspondencia no encontrada)",
+];
+
+function pickRandom<T>(arr: T[], n: number): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a.slice(0, n);
+}
+
+// Una linea de progreso que se adapta al ancho de la terminal
+function stepLine(icon: string, iconColor: string, label: string, pct: number, barColor: string, labelColor = colors.white): string {
+  const c = cols() - 1;
+  const pctStr = `${pct}%`.padStart(4);
+  const barW = Math.min(18, c - 9 - label.length - 3);
+  const useBar = barW >= 6;
+
+  let text = label;
+  if (!useBar) {
+    const max = c - 9;
+    if (text.length > max) text = text.slice(0, Math.max(1, max - 1)) + "…";
+  }
+
+  const filled = useBar ? Math.round((barW * pct) / 100) : 0;
+  const bar = useBar
+    ? ` ${colors.dark}[${barColor}${"█".repeat(filled)}${colors.gray}${"░".repeat(barW - filled)}${colors.dark}]${colors.reset}`
+    : "";
+
+  return `  ${iconColor}${icon}${colors.reset} ${labelColor}${text}${colors.reset}${bar} ${colors.gold}${pctStr}${colors.reset}`;
+}
+
+async function runStep(label: string, fail = false) {
+  const tick = 50;
+  const dur = fail ? 2600 : 650 + Math.random() * 700;
+  const ticks = Math.ceil(dur / tick);
+  const target = fail ? 99 : 100;
+  let f = 0;
+
+  for (let t = 0; t <= ticks; t++) {
+    const pct = Math.round((t / ticks) * target);
+    process.stdout.write(`\r\x1b[2K${stepLine(FRAMES[f++ % FRAMES.length], colors.neonC, label, pct, colors.neonG)}`);
+    await sleep(tick);
+  }
+
+  if (fail) {
+    // se queda trabado en 99% antes de fallar
+    for (let t = 0; t < 24; t++) {
+      process.stdout.write(`\r\x1b[2K${stepLine(FRAMES[f++ % FRAMES.length], colors.neonC, label, 99, colors.neonG)}`);
+      await sleep(tick);
+    }
+    process.stdout.write(`\r\x1b[2K${stepLine("✖", colors.red, label, 99, colors.red, colors.red)}\n`);
+  } else {
+    process.stdout.write(`\r\x1b[2K${stepLine("✔", colors.neonG, label, 100, colors.neonG)}\n`);
+  }
+}
+
+async function loadingScreen(task: string, opts: { steps?: number; hackFail?: boolean } = {}) {
+  if (!isTTY) return; // en pm2 / logs no animamos nada
+
+  const steps = opts.steps ?? 4;
+  process.stdout.write("\x1b[?25l"); // ocultar cursor
+
+  try {
+    console.log("");
+    for (const l of wrap(task, cols() - 5, 2)) console.log(`  ${colors.neonC}${l}${colors.reset}`);
+    console.log("");
+
+    for (const msg of pickRandom(LOADING_MSGS, steps)) await runStep(msg);
+
+    if (opts.hackFail) {
+      await runStep(HACK_TARGET, true);
+      console.log("");
+      for (const err of HACK_ERRORS) {
+        wrap(err, cols() - 7, 2).forEach((l, i) => {
+          console.log(`  ${colors.red}${i === 0 ? "✖" : " "} ${l}${colors.reset}`);
+        });
+      }
+      await sleep(2200);
+    } else {
+      await sleep(350);
+    }
+  } finally {
+    process.stdout.write("\x1b[?25h"); // mostrar cursor
+  }
+}
+
+// ───────────────────────── Banners publicos ─────────────────────────
 
 export async function printSetupBanner(): Promise<void> {
   console.clear();
-  await loadingScreen("Iniciando Core de GhostSaver...");
+  await loadingScreen("Iniciando core de GhostSaver", { steps: 5, hackFail: true });
+  console.clear();
   await renderHero(false);
-  panel("Inicializacion del Guardian", [
-    { text: "✦  Ingresa tu numero para interceptar la sesion de WhatsApp", color: colors.neonC },
-    { text: "✦  Solo necesitas hacer esto UNA VEZ.", color: colors.gold },
+  await panel("Inicializacion del Guardian", [
+    { text: "▸  Ingresa tu numero para vincular la sesion de WhatsApp", color: colors.neonC },
+    { text: "▸  Solo necesitas hacer esto UNA VEZ.", color: colors.gold },
   ]);
   console.log("");
 }
 
 export async function printPairingBanner(code: string): Promise<void> {
   console.clear();
-  await loadingScreen("Generando Codigo de Encriptacion...");
+  await loadingScreen("Generando codigo de vinculacion", { steps: 3 });
+  console.clear();
   await renderHero(false);
-  const formatCode = code.length === 8 ? code.slice(0,4) + "-" + code.slice(4) : code;
-  panel("Paso Final - Vinculacion", [
-    { text: "✦  Abre WhatsApp en tu celular principal", color: colors.silver },
-    { text: "✦  Toca \"Dispositivos vinculados\"", color: colors.silver },
-    { text: "✦  Toca \"Vincular con numero de telefono\"", color: colors.silver },
-    { text: `✦  Ingresa este codigo maestro:  ${formatCode}  `, color: colors.neonG }
+  const formatCode = code.length === 8 ? code.slice(0, 4) + "-" + code.slice(4) : code;
+  await panel("Paso final - Vinculacion", [
+    { text: "▸  Abre WhatsApp en tu celular principal", color: colors.silver },
+    { text: 'Toca "Dispositivos vinculados"'.padStart(0), color: colors.silver },
+    { text: 'Toca "Vincular con numero de telefono"', color: colors.silver },
+    { text: `►  CODIGO:  ${formatCode}`, color: colors.neonG },
   ]);
   console.log("");
 }
 
 export async function printConnectedBanner(ownerNumber: string, prefixEnabled: boolean): Promise<void> {
   console.clear();
-  await loadingScreen("Sincronizando GhostSaver con WhatsApp...");
+  await loadingScreen("Sincronizando GhostSaver con WhatsApp", { steps: 3 });
+  console.clear();
   await renderHero(true);
   const prefixStr = prefixEnabled ? `[ ${config.prefix} ] Activo` : "Desactivado";
-  panel("Conexion Establecida", [
+  await panel("Conexion establecida", [
     { text: "Bot: GHOSTSAVER PRO", color: colors.neonG },
     { text: "Estado: ONLINE y PROTEGIDO", color: colors.white },
     { text: `Owner: +${ownerNumber}`, color: colors.neonC },
@@ -142,6 +334,8 @@ export async function printConnectedBanner(ownerNumber: string, prefixEnabled: b
   ]);
   console.log("");
 }
+
+// ───────────────────────── Sesion / Auth ─────────────────────────
 
 function prompt(text: string): Promise<string> {
   return new Promise((resolve) => {
@@ -164,7 +358,7 @@ export async function getOwnerNumber(): Promise<string> {
   let number = "";
   while (!number || !/^\d{10,15}$/.test(number)) {
     number = await prompt(
-      `  ${colors.neonG}➤${colors.white} Tu numero (con codigo de pais, sin +):${colors.reset}\n  ${colors.gold}Ej: 5732XXXXXXXX${colors.reset} > `
+      `  ${colors.neonG}➤${colors.white} Tu numero (codigo de pais, sin +):${colors.reset}\n  ${colors.gold}Ej: 5732XXXXXXXX${colors.reset} > `
     );
     if (!/^\d{10,15}$/.test(number))
       console.log(`\n  ${colors.red}✖ Numero invalido.${colors.reset}\n`);
