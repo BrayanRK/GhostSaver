@@ -64,8 +64,13 @@ export async function loadCommands(): Promise<Map<string, Command>> {
   return commands;
 }
 
+let isWatching = false;
+
 // ─── Auto-reload con debounce ─────────────────────────────────────────────────
 export function setupAutoReload(commands: Map<string, Command>): void {
+  if (isWatching) return;
+  isWatching = true;
+
   let debounce: NodeJS.Timeout | null = null;
 
   fs.watch(COMMANDS_DIR, { recursive: true }, async (_event, filename) => {
