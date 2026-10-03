@@ -1,27 +1,9 @@
-// ╔══════════════════════════════════════════════════════════════╗
-// ║              GhostSaver — Comando: menu                     ║
-// ╚══════════════════════════════════════════════════════════════╝
-
 import fs from "fs";
 import path from "path";
 import { pathToFileURL } from "url";
 import type { WASocket, WAMessage } from "ultra-baileys";
 import type { Command, BotContext } from "../../types/index.js";
 import config from "../../config.js";
-
-import { Deco } from "../../utils/deco.js";
-
-const CATEGORY_ICONS: Record<string, string> = {
-  MEDIA:   "🎬 MEDIA",
-  UTILS:   "⚙️ UTILS",
-  OWNER:   "💀 OWNER",
-  GENERAL: "⚡ GENERAL",
-  DEFAULT: "🗡️ CMD",
-};
-
-function getCategoryIcon(cat: string): string {
-  return CATEGORY_ICONS[cat] ?? CATEGORY_ICONS.DEFAULT;
-}
 
 function getFiles(dir: string): string[] {
   if (!fs.existsSync(dir)) return [];
@@ -67,40 +49,47 @@ const command: Command = {
             if (!menuData[category]) menuData[category] = [];
             menuData[category].push({ name: cmd.name, aliases: cmd.aliases ?? [] });
           }
-        } catch { /* skip archivo inválido */ }
+        } catch { /* skip archivo invalido */ }
       }
 
       const categories = Object.keys(menuData).sort();
       const totalCmds  = categories.reduce((acc, c) => acc + menuData[c].length, 0);
-      const pfx = ctx.settings.prefixEnabled ? config.prefix : "";
-      const pfxLabel = ctx.settings.prefixEnabled ? `\`${config.prefix}\`` : "Modo libre";
+      const pfx        = ctx.settings.prefixEnabled ? config.prefix : "";
+      const pfxLabel   = ctx.settings.prefixEnabled ? `\`${config.prefix}\`` : "Sin prefijo";
 
-      const botName = `*GHOSTSAVER*`;
-      const botCreator = 'B R A Y A N R K';
+      // ── Cabecera ──────────────────────────────────────────────────
+      let t = "";
+      t += `*!Hola! Soy* *GhostSaver* \u{1F47B}\n`;
+      t += `*aqui tienes la lista de comandos*\n\n`;
+      t += `\u{256D}\u{2508}\u{2508}\u{2508} \u{21B7}\n`;
+      t += `\u{2502} \u{2712} Developed by *BrayanRK*\n`;
+      t += `\u{2502} \u{2712} Comandos: ${totalCmds}  |  Prefijo: ${pfxLabel}\n`;
+      t += `\u{2570}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\n\n`;
 
-      let t = `¡Hola! Soy ⑘ ${botName} ↫\nᴀǫᴜɪ ᴛɪᴇɴᴇs ʟᴀ ʟɪsᴛᴀ ᴅᴇ ᴄᴏᴍᴀɴᴅᴏs\n\n`;
-      t += `╭─── ↷\n`;
-      t += `│ ✐ 𝗧𝗲𝗺𝗽𝗹𝗮𝘁𝗲 𝗕𝘆 ${botCreator}\n`;
-      t += `│ ✐ Total Comandos: ${totalCmds}\n`;
-      t += `│ ✐ Prefijo: ${pfxLabel}\n`;
-      t += `╰──────────────────\n\n`;
-
+      // ── Categorias y comandos ──────────────────────────────────────
       for (const category of categories) {
         const catName = category.charAt(0).toUpperCase() + category.slice(1).toLowerCase();
-        const cmds = menuData[category];
+        const cmds    = menuData[category];
 
-        t += `${Deco.header(catName)}\n`;
-        t += `${Deco.quote(`✐ Comandos de *${catName}*`)}\n\n`;
+        // Titulo de categoria: *_☑︎ CATEGORIA ☑︎_*
+        t += `*_\u{2611}\uFE0E ${catName.toUpperCase()} \u{2611}\uFE0E_*\n\n`;
+
+        // Subtitulo
+        t += `> \u{2710} Comandos de *${catName}*\n\n`;
 
         for (const c of cmds) {
-          t += `${Deco.commandUsage(c.name, c.aliases, pfx)}\n\n`;
+          const aliasArr: string[] = Array.isArray(c.aliases) ? c.aliases : [];
+          const aliasText = aliasArr.length > 0
+            ? aliasArr.map(a => ` \`${pfx}${a}\``).join("")
+            : "";
+          t += `> \u{270E} *${pfx}${c.name}*${aliasText}\n\n`;
         }
       }
 
       await sock.sendMessage(botJid, { text: t.trim() });
     } catch (error) {
       await sock.sendMessage(botJid, {
-        text: Deco.header('MENU') + '\n' + Deco.errorLine(`Error al generar: ${(error as Error).message}`),
+        text: `> \u{274C} Error al generar menu: ${(error as Error).message}`,
       });
     }
   },
