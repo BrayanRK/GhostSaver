@@ -1,15 +1,15 @@
-// ╔══════════════════════════════════════════════════════════════╗
-// ║              GhostSaver — Utility: Deco                     ║
-// ║              Sistema de decoraciones (Estilo Mitsuri-TS)     ║
-// ╚══════════════════════════════════════════════════════════════╝
+﻿// â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—
+// â•‘              GhostSaver â€” Utility: Deco                     â•‘
+// â•‘              Sistema de decoraciones (Estilo Mitsuri-TS)     â•‘
+// â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 export class Deco {
     static header(title: string): string {
-        return `*_☑︎ ${title.toUpperCase()} ☑︎_*\n`;
+        return `*_â˜‘ï¸Ž ${title.toUpperCase()} â˜‘ï¸Ž_*\n`;
     }
 
     static footer(text: string): string {
-        return `\n✎ ${text.toUpperCase()} ✎`;
+        return `\nâœŽ ${text.toUpperCase()} âœŽ`;
     }
 
     static blockquote(text: string): string {
@@ -23,29 +23,29 @@ export class Deco {
         return this.blockquote(text);
     }
 
-    static commandUsage(name: string, aliases: string[] = []): string {
-        const aliasesText = aliases.length > 0 ? aliases.map(a => ` \`.${a}\``).join('') : '';
-        return `> ✎ *.${name}*${aliasesText}`;
+    static commandUsage(name: string, aliases: string[] = [], prefix: string = "."): string {
+        const aliasesText = aliases.length > 0 ? aliases.map(a => ` \`${prefix}${a}\``).join('') : '';
+        return `> âœŽ *${prefix}${name}*${aliasesText}`;
     }
 
     static listItem(title: string, value: string): string {
-        return `> ☐ *${title}:* ${value}`;
+        return `> â˜ *${title}:* ${value}`;
     }
 
     static successLine(text: string): string {
-        return this.blockquote(`✓ ${text}`);
+        return this.blockquote(`âœ“ ${text}`);
     }
 
     static warnLine(text: string): string {
-        return this.blockquote(`✘ ${text}`);
+        return this.blockquote(`âœ˜ ${text}`);
     }
 
     static errorLine(text: string): string {
-        return this.blockquote(`✖︎ ${text}`);
+        return this.blockquote(`âœ–ï¸Ž ${text}`);
     }
 
     static infoLine(text: string): string {
-        return this.blockquote(`✎ ${text}`);
+        return this.blockquote(`âœŽ ${text}`);
     }
 }
 

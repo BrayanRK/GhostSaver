@@ -329,7 +329,7 @@ export async function printConnectedBanner(ownerNumber: string, prefixEnabled: b
     { text: "Estado: ONLINE y PROTEGIDO", color: colors.white },
     { text: `Owner: +${ownerNumber}`, color: colors.neonC },
     { text: `Prefijo: ${prefixStr}`, color: colors.gold },
-    { text: "Seguridad: AntiDelete [Activo] | Comandos: .vv", color: colors.gray },
+    { text: `Seguridad: AntiDelete [Activo] | Comandos: ${prefixStr}vv`, color: colors.gray },
     { text: "Dev: BrayanRK", color: colors.neonG },
   ]);
   console.log("");

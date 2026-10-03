@@ -93,7 +93,7 @@ const command: Command = {
         t += `${Deco.quote(`✐ Comandos de *${catName}*`)}\n\n`;
 
         for (const c of cmds) {
-          t += `${Deco.commandUsage(c.name, c.aliases)}\n\n`;
+          t += `${Deco.commandUsage(c.name, c.aliases, pfx)}\n\n`;
         }
       }
 

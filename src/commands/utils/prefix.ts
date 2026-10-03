@@ -29,8 +29,8 @@ const command: Command = {
           Deco.header("PREFIJO") + "\n" +
           Deco.listItem("Estado", estado) + "\n\n" +
           Deco.infoLine("Uso:") + "\n" +
-          Deco.commandUsage("prefix on", ["activar"]) + "\n" +
-          Deco.commandUsage("prefix off", ["desactivar"])
+          Deco.commandUsage("prefix on", ["activar"], settings.prefixEnabled ? config.prefix : "") + "\n" +
+          Deco.commandUsage("prefix off", ["desactivar"], settings.prefixEnabled ? config.prefix : "")
       });
       return;
     }
