@@ -376,14 +376,20 @@ export async function printPairingBanner(code: string): Promise<void> {
   console.clear();
   await renderHero(false);
   const formatCode = code.length === 8 ? code.slice(0, 4) + "-" + code.slice(4) : code;
-  await panel("Paso final - Vinculacion", [
-    { text: "▸  Abre WhatsApp en tu celular principal", color: colors.silver },
-    { text: 'Toca "Dispositivos vinculados"'.padStart(0), color: colors.silver },
-    { text: 'Toca "Vincular con numero de telefono"', color: colors.silver },
-    { text: `►  CODIGO:  ${formatCode}`, color: colors.neonG },
+  await panel("Vinculacion de dispositivo", [
+    { text: "Sigue estos pasos en tu celular:",         color: colors.neonC  },
+    { text: "",                                         color: colors.reset  },
+    { text: "  1 ▸  Abre WhatsApp",                    color: colors.white  },
+    { text: "  2 ▸  Toca los 3 puntos  →  Dispositivos vinculados", color: colors.silver },
+    { text: "  3 ▸  Toca  \"Vincular con numero de telefono\"",       color: colors.silver },
+    { text: "  4 ▸  Ingresa tu numero y espera el codigo",           color: colors.silver },
+    { text: "",                                         color: colors.reset  },
+    { text: `  ►  CODIGO:  ${formatCode}`,             color: colors.neonG  },
+    { text: "     (el codigo expira en 60 segundos)",  color: colors.gold   },
   ]);
   console.log("");
 }
+
 
 export async function printConnectedBanner(ownerNumber: string, prefixEnabled: boolean): Promise<void> {
   console.clear();
