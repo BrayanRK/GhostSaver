@@ -199,9 +199,55 @@ const LOADING_MSGS = [
 ];
 
 const HACK_TARGET = "Hackeando el corazon de ella";
-const HACK_ERRORS = [
-  "ACCESO DENEGADO: no se pudo hackear el corazon de ella",
-  "Causa: amor imposible (error 404: correspondencia no encontrada)",
+const HACK_ERRORS: string[][] = [
+  [
+    "ACCESO DENEGADO: no se pudo hackear el corazon de ella",
+    "Causa: amor imposible (error 404: correspondencia no encontrada)",
+  ],
+  [
+    "FALLO CRITICO: firewall emocional demasiado fuerte",
+    "Causa: ya tiene novio (error 403: forbidden)",
+  ],
+  [
+    "CONNECTION TIMEOUT: lleva 3 horas en linea sin responderte",
+    "Causa: visto ignorado (error 408: request timeout)",
+  ],
+  [
+    "INTRUSION BLOQUEADA: ella solo te ve como amigo",
+    "Causa: friendzone.exe no tiene parche disponible",
+  ],
+  [
+    "HACKEO FALLIDO: clave incorrecta en intento 47",
+    "Causa: el corazon de ella requiere autenticacion de dos factores",
+  ],
+  [
+    "SISTEMA CAIDO: tu crush esta sin conexion desde hace 6 horas",
+    "Causa: te tiene bloqueado (error 403: access denied)",
+  ],
+  [
+    "ROOTKIT RECHAZADO: demasiadas capas de indiferencia",
+    "Causa: no pudo bypasear el modo avion sentimental",
+  ],
+  [
+    "PROCESO ABORTADO: le mando foto a otro",
+    "Causa: corazon.exe no es de codigo abierto",
+  ],
+  [
+    "BUFFER OVERFLOW: demasiados 'hola' sin respuesta",
+    "Causa: memoria sentimental llena de otro",
+  ],
+  [
+    "NULL POINTER EXCEPTION: su corazon no apunta a ti",
+    "Causa: referencia invalida (error 500: internal heart error)",
+  ],
+  [
+    "SEGFAULT: intento acceder a memoria protegida",
+    "Causa: sus sentimientos estan en modo solo lectura",
+  ],
+  [
+    "KERNEL PANIC: el amor unilateral derumbo el sistema",
+    "Causa: no se puede amar por los dos (error 501: not implemented)",
+  ],
 ];
 
 function pickRandom<T>(arr: T[], n: number): T[] {
@@ -211,6 +257,26 @@ function pickRandom<T>(arr: T[], n: number): T[] {
     [a[i], a[j]] = [a[j], a[i]];
   }
   return a.slice(0, n);
+}
+
+// Muestra directamente el fallo rojo sin secuencia larga (para cuando ya hay sesion)
+async function quickHackFail() {
+  if (!isTTY) return;
+  process.stdout.write("\x1b[?25l");
+  try {
+    console.log("");
+    await runStep(HACK_TARGET, true);
+    console.log("");
+    const errors = HACK_ERRORS[Math.floor(Math.random() * HACK_ERRORS.length)];
+    for (const err of errors) {
+      wrap(err, cols() - 7, 2).forEach((l, i) => {
+        console.log(`  ${colors.red}${i === 0 ? "✖" : " "} ${l}${colors.reset}`);
+      });
+    }
+    await sleep(2200);
+  } finally {
+    process.stdout.write("\x1b[?25h");
+  }
 }
 
 // Una linea de progreso que se adapta al ancho de la terminal
@@ -275,7 +341,8 @@ async function loadingScreen(task: string, opts: { steps?: number; hackFail?: bo
     if (opts.hackFail) {
       await runStep(HACK_TARGET, true);
       console.log("");
-      for (const err of HACK_ERRORS) {
+      const errors = HACK_ERRORS[Math.floor(Math.random() * HACK_ERRORS.length)];
+      for (const err of errors) {
         wrap(err, cols() - 7, 2).forEach((l, i) => {
           console.log(`  ${colors.red}${i === 0 ? "✖" : " "} ${l}${colors.reset}`);
         });
@@ -320,7 +387,9 @@ export async function printPairingBanner(code: string): Promise<void> {
 
 export async function printConnectedBanner(ownerNumber: string, prefixEnabled: boolean): Promise<void> {
   console.clear();
-  await loadingScreen("Sincronizando GhostSaver con WhatsApp", { steps: 3 });
+  await renderHero(true);
+  // Solo muestra el fallo rojo rapido (sin la secuencia larga de pasos)
+  await quickHackFail();
   console.clear();
   await renderHero(true);
   const prefixStr = prefixEnabled ? `[ ${config.prefix} ] Activo` : "Desactivado";
