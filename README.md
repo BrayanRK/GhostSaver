@@ -25,6 +25,7 @@ Solo el owner y el super owner pueden usarlo. Sin respuestas en chats ajenos. Si
 - [Archivos guardados](#-archivos-guardados)
 - [Seguridad](#-seguridad)
 - [Tecnologías](#️-tecnologías)
+- [Aviso legal](#️-aviso-legal)
 - [Créditos](#-créditos)
 
 ---
@@ -296,6 +297,18 @@ GhostSaver/
 | Lenguaje | TypeScript estricto |
 | Persistencia | `settings.json` (JSON plano) |
 | Procesos | PM2 (opcional, recomendado) |
+
+---
+
+## ⚠️ Aviso legal
+
+**GhostSaver se distribuye "tal cual", sin garantías de ningún tipo.** Al instalarlo y usarlo aceptas lo siguiente:
+
+- **Uso bajo tu responsabilidad.** El autor no se hace responsable del mal uso de este software ni de los daños, pérdidas o consecuencias (legales, personales o de cualquier otro tipo) que se deriven de él.
+- **Respeta la privacidad y la ley.** Guardar contenido de otras personas sin su consentimiento puede ser ilegal en tu país. Úsalo solo de forma legal y ética, y bajo las leyes que apliquen donde vives.
+- **Riesgo de bloqueo.** WhatsApp puede suspender o bloquear los números que usen clientes no oficiales. El riesgo es tuyo; el autor no responde por cuentas baneadas.
+- **Sin afiliación.** Este proyecto es independiente y no está afiliado, asociado, autorizado ni respaldado por WhatsApp LLC, Meta Platforms, Inc. ni ninguna de sus filiales. WhatsApp es una marca registrada de sus respectivos dueños.
+- **Fines educativos.** El código se comparte con fines de aprendizaje y uso personal.
 
 ---
 
