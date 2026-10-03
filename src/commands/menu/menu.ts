@@ -78,9 +78,12 @@ const command: Command = {
         t += `> \u{2710} Comandos de *${catName}*\n\n`;
 
         for (const c of cmds) {
-          const aliasArr: string[] = Array.isArray(c.aliases) ? c.aliases : [];
-          const aliasText = aliasArr.length > 0
-            ? aliasArr.map(a => ` \`${pfx}${a}\``).join("")
+          // Para "vv" incluir tambien los aliases dinamicos de settings
+          const staticAliases: string[] = Array.isArray(c.aliases) ? c.aliases : [];
+          const dynamicAliases: string[] = c.name === "vv" ? (ctx.settings.vvAliases ?? []) : [];
+          const allAliases = [...new Set([...staticAliases, ...dynamicAliases])];
+          const aliasText = allAliases.length > 0
+            ? allAliases.map(a => ` \`${pfx}${a}\``).join("")
             : "";
           t += `> \u{270E} *${pfx}${c.name}*${aliasText}\n\n`;
         }
