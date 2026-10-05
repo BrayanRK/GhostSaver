@@ -3,44 +3,85 @@ import path from "path";
 import readline from "readline";
 import { useMultiFileAuthState } from "ultra-baileys";
 import config from "../config.js";
-import log from "../logger.js";
 
 // ═════════════════════════════════════════════════════════════════
-// 1. UTILIDADES Y CONSTANTES ANSI (Cero dependencias)
+// 1. COLORES Y UTILIDADES (cero dependencias)
 // ═════════════════════════════════════════════════════════════════
 
 const c = {
-  rst: "\x1b[0m",
-  bold: "\x1b[1m",
-  dim: "\x1b[2m",
-  italic: "\x1b[3m",
-  bgRed: "\x1b[48;5;196m",
-  red: "\x1b[38;5;196m",
+  rst:     "\x1b[0m",
+  bold:    "\x1b[1m",
+  dim:     "\x1b[2m",
+  white:   "\x1b[38;5;231m",
+  silver:  "\x1b[38;5;250m",
+  gray:    "\x1b[38;5;244m",
+  dark:    "\x1b[38;5;238m",
+  green:   "\x1b[38;5;46m",
+  green2:  "\x1b[38;5;48m",
+  green3:  "\x1b[38;5;49m",
+  lime4:   "\x1b[38;5;34m",
+  lime5:   "\x1b[38;5;28m",
+  lime6:   "\x1b[38;5;22m",
+  cyan:    "\x1b[38;5;51m",
+  blue:    "\x1b[38;5;39m",
+  red:     "\x1b[38;5;196m",
   redDark: "\x1b[38;5;88m",
-  green: "\x1b[38;5;46m",
-  cyan: "\x1b[38;5;51m",
-  blue: "\x1b[38;5;33m",
-  white: "\x1b[38;5;231m",
-  gray: "\x1b[38;5;244m",
-  dark: "\x1b[38;5;236m",
-  gold: "\x1b[38;5;220m"
+  bgRed:   "\x1b[48;5;196m",
+  gold:    "\x1b[38;5;220m",
 };
 
-const SPINNER = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
-
 const isTTY = () => Boolean(process.stdout.isTTY);
-
-function getWidth(): number {
-  const cols = process.stdout.columns || 80;
-  return Math.max(40, Math.min(cols, 80)); // Restringido entre 40 y 80 para un HUD limpio
-}
-
-function stripAnsi(str: string): string {
-  return str.replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, "");
-}
+const cols = () => process.stdout.columns || 80;
+// Ancho interior de las cajas. Caja total = W + 4, siempre menor al ancho de la terminal.
+const getWidth = () => Math.max(30, Math.min(76, cols() - 5));
 
 const sleep = (ms: number): Promise<void> =>
   isTTY() ? new Promise((res) => setTimeout(res, ms)) : Promise.resolve();
+
+function stripAnsi(s: string): string {
+  return String(s).replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, "");
+}
+
+function hideCursor() {
+  if (isTTY()) process.stdout.write("\x1b[?25l");
+}
+function showCursor() {
+  if (isTTY()) process.stdout.write("\x1b[?25h");
+}
+// Si el proceso muere en medio de una animacion, el cursor vuelve igual
+process.once("exit", showCursor);
+
+function pickRandom<T>(arr: T[], n: number): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a.slice(0, n);
+}
+
+// Corta texto en varias lineas segun el ancho (con sangria en las continuaciones)
+function wrap(text: string, width: number, indent = 3): string[] {
+  const words = text.split(" ").filter(Boolean);
+  const lines: string[] = [];
+  let cur = "";
+  const limit = () => (lines.length === 0 ? width : Math.max(8, width - indent));
+
+  for (const word of words) {
+    let w = word;
+    while (true) {
+      if (!cur && w.length <= limit()) { cur = w; break; }
+      if (cur && cur.length + 1 + w.length <= limit()) { cur += " " + w; break; }
+      if (cur) { lines.push(cur); cur = ""; continue; }
+      const lim = limit();
+      lines.push(w.slice(0, lim));
+      w = w.slice(lim);
+      if (!w) break;
+    }
+  }
+  if (cur) lines.push(cur);
+  return lines.map((l, i) => (i === 0 ? l : " ".repeat(indent) + l));
+}
 
 // ═════════════════════════════════════════════════════════════════
 // 2. TEXTOS Y HUMOR MIGAJERO
@@ -81,269 +122,490 @@ const HACK_ERRORS: string[][] = [
   ["KERNEL PANIC: el amor unilateral derumbo el sistema", "Causa: no se puede amar por los dos (error 501: not implemented)"],
 ];
 
-function pickRandom<T>(arr: T[], n: number): T[] {
-  const shuffled = [...arr].sort(() => 0.5 - Math.random());
-  return shuffled.slice(0, n);
+const DEV_NAME = "BrayanRK";
+const DEV_ALIAS = "Draven";
+const REPO = "github.com/BrayanRK/GhostSaver";
+
+// ═════════════════════════════════════════════════════════════════
+// 3. FUENTE DE BLOQUES 5x5 (A-Z, 0-9, guion)
+// ═════════════════════════════════════════════════════════════════
+
+const FONT: Record<string, string[]> = {
+  " ": ["     ", "     ", "     ", "     ", "     "],
+  "-": ["     ", "     ", " ███ ", "     ", "     "],
+  A: [" ███ ", "█   █", "█████", "█   █", "█   █"],
+  B: ["████ ", "█   █", "████ ", "█   █", "████ "],
+  C: [" ████", "█    ", "█    ", "█    ", " ████"],
+  D: ["████ ", "█   █", "█   █", "█   █", "████ "],
+  E: ["█████", "█    ", "████ ", "█    ", "█████"],
+  F: ["█████", "█    ", "████ ", "█    ", "█    "],
+  G: [" ████", "█    ", "█  ██", "█   █", " ████"],
+  H: ["█   █", "█   █", "█████", "█   █", "█   █"],
+  I: ["█████", "  █  ", "  █  ", "  █  ", "█████"],
+  J: ["  ███", "   █ ", "   █ ", "█  █ ", " ██  "],
+  K: ["█   █", "█  █ ", "███  ", "█  █ ", "█   █"],
+  L: ["█    ", "█    ", "█    ", "█    ", "█████"],
+  M: ["█   █", "██ ██", "█ █ █", "█   █", "█   █"],
+  N: ["█   █", "██  █", "█ █ █", "█  ██", "█   █"],
+  O: [" ███ ", "█   █", "█   █", "█   █", " ███ "],
+  P: ["████ ", "█   █", "████ ", "█    ", "█    "],
+  Q: [" ███ ", "█   █", "█ █ █", "█  █ ", " ██ █"],
+  R: ["████ ", "█   █", "████ ", "█  █ ", "█   █"],
+  S: [" ████", "█    ", " ███ ", "    █", "████ "],
+  T: ["█████", "  █  ", "  █  ", "  █  ", "  █  "],
+  U: ["█   █", "█   █", "█   █", "█   █", " ███ "],
+  V: ["█   █", "█   █", "█   █", " █ █ ", "  █  "],
+  W: ["█   █", "█   █", "█ █ █", "██ ██", "█   █"],
+  X: ["█   █", " █ █ ", "  █  ", " █ █ ", "█   █"],
+  Y: ["█   █", " █ █ ", "  █  ", "  █  ", "  █  "],
+  Z: ["█████", "   █ ", "  █  ", " █   ", "█████"],
+  "0": [" ███ ", "█  ██", "█ █ █", "██  █", " ███ "],
+  "1": ["  █  ", " ██  ", "  █  ", "  █  ", " ███ "],
+  "2": [" ███ ", "█   █", "  ██ ", " █   ", "█████"],
+  "3": ["████ ", "    █", " ███ ", "    █", "████ "],
+  "4": ["█  █ ", "█  █ ", "█████", "   █ ", "   █ "],
+  "5": ["█████", "█    ", "████ ", "    █", "████ "],
+  "6": [" ███ ", "█    ", "████ ", "█   █", " ███ "],
+  "7": ["█████", "   █ ", "  █  ", " █   ", " █   "],
+  "8": [" ███ ", "█   █", " ███ ", "█   █", " ███ "],
+  "9": [" ███ ", "█   █", " ████", "    █", " ███ "],
+};
+
+function bigRows(text: string): string[] {
+  const chars = text.toUpperCase().split("");
+  return [0, 1, 2, 3, 4].map((r) =>
+    chars.map((ch) => (FONT[ch] ?? FONT[" "])[r]).join(" ")
+  );
 }
 
 // ═════════════════════════════════════════════════════════════════
-// 3. COMPONENTES VISUALES
+// 4. PIEZAS DE DIBUJO (cajas HUD)
 // ═════════════════════════════════════════════════════════════════
 
-async function typeCmd(cmd: string) {
-  if (!isTTY()) {
-    console.log(`root@ghostsaver:~# ${cmd}`);
-    return;
+function border(kind: "top" | "mid" | "bottom", color: string, title?: string): string {
+  const W = getWidth();
+  if (kind === "top" && title) {
+    const t = title.length > W - 4 ? title.slice(0, W - 4) : title;
+    const n = Math.max(1, W - 3 - t.length);
+    return `${color}╭─[ ${c.white}${c.bold}${t}${c.rst}${color} ]${"─".repeat(n)}╮${c.rst}`;
   }
-  process.stdout.write(`\n  ${c.green}${c.bold}root@ghostsaver${c.rst}:${c.cyan}~${c.rst}# `);
-  await sleep(200);
-  for (const char of cmd) {
-    process.stdout.write(char);
-    await sleep(25 + Math.random() * 40);
-  }
-  await sleep(300);
-  console.log("\n");
+  const [l, r] = kind === "top" ? ["╭", "╮"] : kind === "mid" ? ["├", "┤"] : ["╰", "╯"];
+  return `${color}${l}${"─".repeat(W + 2)}${r}${c.rst}`;
 }
 
-function drawGhost() {
-  const w = getWidth();
-  const narrow = w < 50;
+// Linea con contenido ya coloreado (el relleno ignora los codigos ANSI)
+function boxRaw(rich: string, side = c.dark): string {
+  const W = getWidth();
+  const pad = Math.max(0, W - stripAnsi(rich).length);
+  return `${side}│${c.rst} ${rich}${" ".repeat(pad)} ${side}│${c.rst}`;
+}
 
-  const GHOST = [
-    "     ▄▄████████▄▄     ",
-    "   ▄██████████████▄   ",
-    "  ██████████████████  ",
-    "  ██▀▀▀████████▀▀▀██  ",
-    "  ██ ▄ █ ██████ ▄ █ ██  ",
-    "  ██████████████████  ",
-    "  ██████▀▀▀▀▀▀██████  ",
-    "  ██████████████████  ",
-    "  ▀██████▀▀▀▀██████▀  ",
-    "    ▀▀▀        ▀▀▀    "
+function centeredRich(rich: string, side = c.dark): string {
+  const W = getWidth();
+  const len = stripAnsi(rich).length;
+  const left = Math.max(0, Math.floor((W - len) / 2));
+  const right = Math.max(0, W - len - left);
+  return `${side}│${c.rst} ${" ".repeat(left)}${rich}${" ".repeat(right)} ${side}│${c.rst}`;
+}
+
+function centered(text = "", color = c.white, side = c.dark): string {
+  const W = getWidth();
+  const t = text.length > W ? text.slice(0, W) : text;
+  return centeredRich(`${color}${t}${c.rst}`, side);
+}
+
+// Texto con wrap y color -> lineas "rich" listas para meter en un panel
+function txt(text: string, color = c.gray): string[] {
+  if (!text) return [""];
+  return wrap(text, getWidth()).map((l) => `${color}${l}${c.rst}`);
+}
+
+// Fila "▸ CLAVE    valor" alineada
+function kv(key: string, value: string, color = c.white): string {
+  const W = getWidth();
+  const kw = 8;
+  const room = W - 2 - kw - 1;
+  const v = value.length > room ? value.slice(0, Math.max(1, room - 1)) + "…" : value;
+  return `${c.green}▸ ${c.gray}${key.padEnd(kw)} ${color}${v}${c.rst}`;
+}
+
+type Row = string | { center: string };
+
+async function printLines(lines: string[], delay = 0) {
+  for (const l of lines) {
+    console.log(l);
+    if (delay) await sleep(delay);
+  }
+}
+
+async function panel(title: string, rows: Row[], color = c.green, side = c.dark) {
+  const out = [
+    border("top", color, title),
+    ...rows.map((r) => (typeof r === "string" ? boxRaw(r, side) : centeredRich(r.center, side))),
+    border("bottom", color),
+    "",
   ];
-  
-  const GRADIENT = [c.white, c.white, c.cyan, c.cyan, c.cyan, c.blue, c.blue, c.green, c.green, c.green];
+  await printLines(out, isTTY() ? 18 : 0);
+}
 
-  console.log("");
-  for (let i = 0; i < GHOST.length; i++) {
-    const ghostLine = `${GRADIENT[i]}${GHOST[i]}${c.rst}`;
-    
-    if (narrow) {
-      const pad = Math.max(0, Math.floor((w - 22) / 2));
-      console.log(" ".repeat(pad) + ghostLine);
-    } else {
-      // Wide layout: Ghost on left, Title on right
-      const titleLines = [
-        "",
-        "",
-        `  ${c.bold}${c.white}G H O S T S A V E R${c.rst}`,
-        `  ${c.cyan}WhatsApp Session Guardian${c.rst}`,
-        `  ${c.dark}─────────────────────────${c.rst}`,
-        `  ${c.gold}PRO VERSION${c.rst}`,
-        `  ${c.gray}github.com/BrayanRK${c.rst}`,
-        "",
-        "",
-        ""
-      ];
-      console.log(`    ${ghostLine}${titleLines[i]}`);
+// ═════════════════════════════════════════════════════════════════
+// 5. EFECTOS HACKER
+// ═════════════════════════════════════════════════════════════════
+
+// Lluvia estilo Matrix (solo ASCII para no romper el ancho en Termux)
+async function matrixIntro(ms = 1400) {
+  if (!isTTY()) return;
+  const w = Math.max(10, cols() - 1);
+  const h = Math.max(4, Math.min(12, (process.stdout.rows || 24) - 3));
+  const glyphs = "01<>[]{}/\\|#$%&*+=;:?ABCDEF";
+  const trail = [c.white, c.green, c.green2, c.lime4, c.lime5, c.lime6];
+  const heads = Array.from({ length: w }, () => -Math.floor(Math.random() * h * 2));
+  const frames = Math.max(1, Math.round(ms / 60));
+
+  hideCursor();
+  try {
+    for (let f = 0; f < frames; f++) {
+      let out = f === 0 ? "" : `\x1b[${h}A`;
+      for (let r = 0; r < h; r++) {
+        let line = "";
+        for (let col = 0; col < w; col++) {
+          const d = heads[col] - r;
+          line += d >= 0 && d < trail.length
+            ? trail[d] + glyphs[Math.floor(Math.random() * glyphs.length)]
+            : " ";
+        }
+        out += `\r${line}${c.rst}\n`;
+      }
+      process.stdout.write(out);
+      for (let col = 0; col < w; col++) {
+        heads[col]++;
+        if (heads[col] - trail.length > h && Math.random() > 0.6) {
+          heads[col] = -Math.floor(Math.random() * h);
+        }
+      }
+      await sleep(60);
     }
-  }
-
-  if (narrow) {
-    console.log(`\n  ${c.bold}${c.white}GHOSTSAVER PRO${c.rst}`);
-    console.log(`  ${c.cyan}WhatsApp Session Guardian${c.rst}`);
-    console.log(`  ${c.gray}github.com/BrayanRK${c.rst}\n`);
-  } else {
-    console.log("");
+  } finally {
+    showCursor();
   }
 }
 
-function drawBox(title: string, lines: string[], color = c.cyan) {
-  const w = getWidth();
-  const cleanTitle = stripAnsi(title);
-  const topPad = Math.max(0, w - cleanTitle.length - 8);
-  
-  console.log(`  ${color}╭─ [ ${c.white}${c.bold}${title}${c.rst}${color} ] ${"─".repeat(topPad)}╮${c.rst}`);
-  
-  for (const line of lines) {
-    const clean = stripAnsi(line);
-    const pad = Math.max(0, w - clean.length - 4);
-    console.log(`  ${color}│${c.rst} ${line} ${" ".repeat(pad)}${color}│${c.rst}`);
-  }
-  
-  console.log(`  ${color}╰${"─".repeat(w - 2)}╯${c.rst}\n`);
-}
-
-// ═════════════════════════════════════════════════════════════════
-// 4. MOTOR DE CARGA Y HACKEO
-// ═════════════════════════════════════════════════════════════════
-
-async function runStep(label: string, isFail = false) {
+// Prompt de terminal con efecto de tipeo
+async function typeLine(rawCmd: string) {
+  // En pantallas angostas (Termux) el prompt se acorta y el comando se recorta para no hacer wrap
+  const narrow = cols() < 50;
+  const user = narrow ? "ghost" : "root@ghostsaver";
+  const prefixLen = 2 + user.length + 4; // sangria + usuario + ":~# "
+  const cmd = rawCmd.length > cols() - 1 - prefixLen ? rawCmd.slice(0, Math.max(4, cols() - 1 - prefixLen)) : rawCmd;
+  const prompt = `  ${c.green}${c.bold}${user}${c.rst}${c.white}:${c.cyan}~${c.white}# ${c.rst}`;
   if (!isTTY()) {
-    console.log(`  [ OK ] ${label}`);
+    console.log(prompt + cmd);
+    return;
+  }
+  process.stdout.write(prompt);
+  await sleep(180);
+  for (const ch of cmd) {
+    process.stdout.write(`${c.silver}${ch}${c.rst}`);
+    await sleep(18 + Math.random() * 22);
+  }
+  await sleep(220);
+  process.stdout.write("\n");
+}
+
+// Filas de texto grande que se "descifran" de izquierda a derecha
+async function revealRows(rows: string[], grads: string[], frames = 14) {
+  const len = Math.max(...rows.map((r) => r.length));
+  const grad = (i: number) => grads[i % grads.length];
+
+  if (!isTTY()) {
+    await printLines(rows.map((r, i) => centered(r, grad(i))));
     return;
   }
 
-  const w = getWidth();
-  const target = isFail ? 99 : 100;
-  const tickLimit = isFail ? 35 : 20;
+  const glyphs = "01#$%&*+=<>/\\|";
+  const band = 6;
+  hideCursor();
+  try {
+    for (let f = 0; f < frames; f++) {
+      const prog = Math.round(((f + 1) / frames) * (len + band));
+      let out = f === 0 ? "" : `\x1b[${rows.length}A`;
+      for (let r = 0; r < rows.length; r++) {
+        let s = "";
+        for (let col = 0; col < len; col++) {
+          const ch = rows[r][col] ?? " ";
+          if (ch === " ") s += " ";
+          else if (col < prog - band) s += `${grad(r)}${ch}`;
+          else if (col < prog) s += `${c.lime4}${glyphs[Math.floor(Math.random() * glyphs.length)]}`;
+          else s += " ";
+        }
+        out += centeredRich(s + c.rst) + "\n";
+      }
+      process.stdout.write(out);
+      await sleep(45);
+    }
+  } finally {
+    showCursor();
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════
+// 6. BOOT LOG Y GAG DEL HACKEO
+// ═════════════════════════════════════════════════════════════════
+
+const SPINNER = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+const lineW = () => Math.min(cols() - 1, 76);
+
+function bootLine(state: "run" | "ok" | "fail", label: string, pct: number, frame = "⠋"): string {
+  const lw = lineW();
+  const maxLabel = Math.max(8, lw - 17);
+  const text = label.length > maxLabel ? label.slice(0, maxLabel - 1) + "…" : label;
+  const dots = ".".repeat(Math.max(2, lw - 15 - text.length));
+
+  const badge =
+    state === "ok"   ? `${c.dark}[${c.green} OK ${c.dark}]${c.rst}`
+    : state === "fail" ? `${c.redDark}[${c.red}FAIL${c.redDark}]${c.rst}`
+    : `${c.cyan}[ ${c.white}${frame}${c.cyan}  ]${c.rst}`;
+
+  const labelColor = state === "fail" ? c.red + c.bold : c.white;
+  const tag =
+    state === "fail" ? `${c.red}ERR!${c.rst}`
+    : state === "ok" ? `${c.green}100%${c.rst}`
+    : `${c.gold}${`${pct}%`.padStart(4)}${c.rst}`;
+
+  return `  ${badge} ${labelColor}${text}${c.rst} ${c.dark}${dots}${c.rst} ${tag}`;
+}
+
+async function bootStep(label: string, opts: { fast?: boolean; fail?: boolean } = {}) {
+  const { fast = false, fail = false } = opts;
+  const tick = 40;
   let f = 0;
 
-  for (let tick = 0; tick <= tickLimit; tick++) {
-    const pct = Math.floor((tick / tickLimit) * target);
-    const frame = SPINNER[f++ % SPINNER.length];
-    
-    // Auto-truncate label if terminal is very narrow
-    let safeLabel = label;
-    const fixedWidth = 10 + 9; // "[X] " + " [ XXX% ]"
-    if (safeLabel.length + fixedWidth > w - 2) {
-      safeLabel = safeLabel.substring(0, w - fixedWidth - 5) + "...";
-    }
+  const climb = fail ? (fast ? 700 : 1500) : fast ? 150 + Math.random() * 150 : 300 + Math.random() * 250;
+  const ticks = Math.ceil(climb / tick);
+  const top = fail ? 99 : 100;
 
-    const dotsCount = Math.max(1, (w - 2) - (fixedWidth + safeLabel.length));
-    const dots = c.dark + ".".repeat(dotsCount) + c.rst;
-    const pctStr = pct.toString().padStart(3, " ");
-    const pctColor = pct === 100 ? c.green : c.gold;
-
-    process.stdout.write(`\r\x1b[2K  ${c.cyan}[${c.white}${frame}${c.cyan}]${c.rst} ${safeLabel} ${dots} ${c.cyan}[ ${pctColor}${pctStr}% ${c.cyan}]${c.rst}`);
-    await sleep(isFail ? 40 : 25);
+  for (let t = 0; t <= ticks; t++) {
+    const pct = Math.round((t / ticks) * top);
+    process.stdout.write(`\r\x1b[2K${bootLine("run", label, pct, SPINNER[f++ % SPINNER.length])}`);
+    await sleep(tick);
   }
 
-  if (isFail) {
-    // Hang at 99%
-    const safeLabel = label.length + 19 > w - 2 ? label.substring(0, w - 24) + "..." : label;
-    const dotsCount = Math.max(1, (w - 2) - (19 + safeLabel.length));
-    const dots = c.dark + ".".repeat(dotsCount) + c.rst;
-
-    for (let j = 0; j < 12; j++) {
-      const spin = SPINNER[(f + j) % SPINNER.length];
-      process.stdout.write(`\r\x1b[2K  ${c.red}[${c.white}${spin}${c.red}]${c.rst} ${c.red}${c.bold}${safeLabel}${c.rst} ${dots} ${c.red}[ ${c.white} 99% ${c.red}]${c.rst}`);
-      await sleep(150);
-    }
-  } else {
-    // Success finish
-    const safeLabel = label.length + 19 > w - 2 ? label.substring(0, w - 24) + "..." : label;
-    const dotsCount = Math.max(1, (w - 2) - (19 + safeLabel.length));
-    const dots = c.dark + ".".repeat(dotsCount) + c.rst;
-    process.stdout.write(`\r\x1b[2K  ${c.dark}[ ${c.green}OK${c.dark} ]${c.rst} ${c.white}${safeLabel}${c.rst} ${dots} ${c.dark}[${c.green}100%${c.dark}]${c.rst}\n`);
-  }
-}
-
-async function showHackFail() {
-  await runStep(HACK_TARGET, true);
-  if (!isTTY()) {
-    console.log(`  [FAIL] ${HACK_TARGET}`);
+  if (!fail) {
+    process.stdout.write(`\r\x1b[2K${bootLine("ok", label, 100)}\n`);
     return;
   }
 
-  const [err1, err2] = HACK_ERRORS[Math.floor(Math.random() * HACK_ERRORS.length)];
-  
-  // Glitch flash
-  for (let i = 0; i < 3; i++) {
-    process.stdout.write(`\r\x1b[2K  ${c.bgRed}${c.white}${c.bold} [ SYSTEM FAILURE - INTRUSION REJECTED ] ${c.rst}`);
-    await sleep(60);
-    process.stdout.write(`\r\x1b[2K`);
-    await sleep(50);
+  // se queda trabado en 99% antes de reventar
+  const hold = Math.ceil((fast ? 700 : 1600) / 120);
+  for (let t = 0; t < hold; t++) {
+    process.stdout.write(`\r\x1b[2K${bootLine("run", label, 99, SPINNER[f++ % SPINNER.length])}`);
+    await sleep(120);
   }
-  
-  const w = getWidth();
-  const safeLabel = HACK_TARGET.length + 19 > w - 2 ? HACK_TARGET.substring(0, w - 24) + "..." : HACK_TARGET;
-  const dotsCount = Math.max(1, (w - 2) - (19 + safeLabel.length));
-  const dots = c.dark + ".".repeat(dotsCount) + c.rst;
 
-  process.stdout.write(`\r\x1b[2K  ${c.redDark}[${c.red}FAIL${c.redDark}]${c.rst} ${c.red}${c.bold}${safeLabel}${c.rst} ${dots} ${c.redDark}[${c.red}ERR!${c.redDark}]${c.rst}\n`);
-  console.log(`\n  ${c.red}✖  ${c.bold}${err1}${c.rst}`);
-  console.log(`     ${c.gray}${err2}${c.rst}\n`);
-  await sleep(1000);
+  // flash rojo
+  const flash = lineW() >= 44 ? " SYSTEM FAILURE // INTRUSION REJECTED " : " SYSTEM FAILURE ";
+  for (let i = 0; i < 3; i++) {
+    process.stdout.write(`\r\x1b[2K  ${c.bgRed}${c.white}${c.bold}${flash}${c.rst}`);
+    await sleep(70);
+    process.stdout.write(`\r\x1b[2K`);
+    await sleep(55);
+  }
+  process.stdout.write(`\r\x1b[2K${bootLine("fail", label, 99)}\n`);
+}
+
+async function hackGag(fast = false) {
+  await bootStep(HACK_TARGET, { fail: true, fast });
+  const [err1, err2] = HACK_ERRORS[Math.floor(Math.random() * HACK_ERRORS.length)];
+  console.log("");
+  await panel(
+    "INTRUSION REJECTED",
+    [...txt(`✖ ${err1}`, c.red + c.bold), "", ...txt(err2, c.gray)],
+    c.red,
+    c.redDark
+  );
+  await sleep(fast ? 900 : 1500);
+}
+
+async function bootSequence(
+  command: string,
+  steps: string[],
+  opts: { fast?: boolean; hack?: boolean } = {}
+) {
+  if (!isTTY()) return; // en pm2 / logs no animamos nada
+  hideCursor();
+  try {
+    console.log("");
+    await typeLine(command);
+    console.log("");
+    for (const s of steps) await bootStep(s, { fast: opts.fast });
+    if (opts.hack) await hackGag(opts.fast);
+    else await sleep(opts.fast ? 150 : 400);
+  } finally {
+    showCursor();
+  }
 }
 
 // ═════════════════════════════════════════════════════════════════
-// 5. EXPORTS PÚBLICOS (BANNERS)
+// 7. HERO (logo + titulo + firma)
+// ═════════════════════════════════════════════════════════════════
+
+// Cada linea es simetrica, asi que centrarlas una por una da el fantasma perfecto
+const GHOST = [
+  "▄▄██████▄▄",
+  "▄██████████████▄",
+  "██████████████████",
+  "███  ████████  ███",
+  "███  ████████  ███",
+  "██████████████████",
+  "████████▄▄████████",
+  "██████████████████",
+  "██▀██▀██▀▀██▀██▀██",
+];
+
+const GHOST_GRAD = [c.white, c.white, c.silver, c.cyan, c.cyan, c.green3, c.green3, c.green2, c.green];
+const TITLE_GRAD = [c.green, c.green2, c.green3, c.cyan, c.cyan];
+
+async function renderHero(opts: { ready?: boolean; ghost?: boolean; bigTitle?: boolean } = {}) {
+  const { ready = false, ghost = true, bigTitle = true } = opts;
+  const W = getWidth();
+  const wide = W >= 59; // GHOSTSAVER en una sola linea mide 59
+  const delay = isTTY() ? 22 : 0;
+
+  const head: string[] = [border("top", c.green, ready ? "GHOSTSAVER // ONLINE" : "GHOSTSAVER // BOOT"), centered("")];
+  if (ghost) {
+    GHOST.forEach((l, i) => head.push(centered(l, GHOST_GRAD[i])));
+    head.push(centered(""));
+  }
+  await printLines(head, delay);
+
+  if (bigTitle) {
+    const rows = wide ? bigRows("GHOSTSAVER") : [...bigRows("GHOST"), ...bigRows("SAVER")];
+    const grads = wide ? TITLE_GRAD : [...TITLE_GRAD, ...TITLE_GRAD];
+    await revealRows(rows, grads);
+  } else {
+    await printLines([centeredRich(`${c.bold}${c.green}G H O S T S A V E R${c.rst}`)]);
+  }
+
+  const tail: string[] = [];
+  tail.push(centered(""));
+  tail.push(centered(W >= 36 ? "─── WhatsApp Session Guardian ───" : "WhatsApp Session Guardian", c.cyan));
+  if (W >= 37) tail.push(centered("ViewOnce Saver · AntiDelete · Stealth", c.gray));
+  tail.push(centeredRich(`${c.lime6}░${c.lime5}▒${c.lime4}▓${c.green}█${c.lime4}▓${c.lime5}▒${c.lime6}░${c.rst}`));
+  tail.push(border("mid", c.cyan));
+  tail.push(
+    centeredRich(`${c.gray}DEV ${c.dark}//${c.rst} ${c.gold}${c.bold}${DEV_NAME}${c.rst} ${c.gray}aka${c.rst} ${c.cyan}${DEV_ALIAS}${c.rst}`)
+  );
+  tail.push(
+    W >= 38
+      ? centeredRich(`${c.gray}REPO ${c.dark}//${c.rst} ${c.silver}${REPO}${c.rst}`)
+      : centered(REPO, c.silver)
+  );
+
+  const state = ready ? "ONLINE" : "BOOT";
+  const stateColor = ready ? c.green : c.gold;
+  tail.push(
+    centeredRich(
+      W >= 44
+        ? `${stateColor}● ${state}${c.rst}   ${c.gray}◆ SECURE   ◆ STEALTH   ◆ PRO${c.rst}`
+        : `${stateColor}● ${state}${c.rst}   ${c.gray}◆ SECURE   ◆ PRO${c.rst}`
+    )
+  );
+  tail.push(border("bottom", c.green));
+  tail.push("");
+  await printLines(tail, delay);
+}
+
+// ═════════════════════════════════════════════════════════════════
+// 8. BANNERS PUBLICOS
 // ═════════════════════════════════════════════════════════════════
 
 export async function printSetupBanner(): Promise<void> {
-  if (isTTY()) process.stdout.write("\x1b[?25l"); // Hide cursor
-  try {
+  if (isTTY()) {
     console.clear();
-    await typeCmd("./ghostsaver --init");
-    drawGhost();
-    
-    for (const msg of pickRandom(LOADING_MSGS, 5)) {
-      await runStep(msg);
-    }
-    await showHackFail();
-
-    drawBox("INITIAL SETUP", [
-      `${c.cyan}▸${c.rst} Ingresa tu numero para vincular WhatsApp`,
-      `${c.gold}▸${c.rst} Solo necesitas hacer esto UNA VEZ.`
-    ], c.blue);
-
-  } finally {
-    if (isTTY()) process.stdout.write("\x1b[?25h"); // Show cursor
+    await matrixIntro(1300);
+    console.clear();
+    await bootSequence("./ghostsaver --init", pickRandom(LOADING_MSGS, 5), { hack: true });
+    console.clear();
   }
+  await renderHero({});
+  await panel(
+    "INITIAL SETUP",
+    [
+      ...txt("▸ Ingresa tu numero para vincular WhatsApp", c.cyan),
+      ...txt("▸ Solo necesitas hacer esto UNA VEZ.", c.gold),
+    ],
+    c.blue
+  );
 }
 
 export async function printPairingBanner(code: string): Promise<void> {
-  if (isTTY()) process.stdout.write("\x1b[?25l");
-  try {
+  if (isTTY()) {
     console.clear();
-    await typeCmd("./ghostsaver --pair");
-    drawGhost();
-
-    for (const msg of pickRandom(LOADING_MSGS, 3)) {
-      await runStep(msg);
-    }
-    console.log("");
-
-    const formatCode = code.length === 8 ? `${code.slice(0,4)}-${code.slice(4)}` : code;
-    
-    drawBox("PAIRING REQUIRED", [
-      `${c.white}Sigue estos pasos en tu celular principal:${c.rst}`,
-      "",
-      `  ${c.cyan}1${c.rst} ▸ Abre WhatsApp`,
-      `  ${c.cyan}2${c.rst} ▸ Toca los 3 puntos → Dispositivos vinculados`,
-      `  ${c.cyan}3${c.rst} ▸ Toca "Vincular con numero de telefono"`,
-      `  ${c.cyan}4${c.rst} ▸ Ingresa tu numero y espera el codigo`,
-      "",
-      `  ► ${c.bold}${c.green}CODIGO: ${formatCode}${c.rst}`,
-      `    ${c.gold}(El codigo expira en 60 segundos)${c.rst}`
-    ], c.cyan);
-
-  } finally {
-    if (isTTY()) process.stdout.write("\x1b[?25h");
+    await bootSequence("./ghostsaver --pair", pickRandom(LOADING_MSGS, 3));
+    console.clear();
   }
+  // Pairing: version compacta (sin fantasma) para que el codigo quede siempre visible
+  await renderHero({ ghost: false, bigTitle: getWidth() >= 59 });
+
+  const W = getWidth();
+  const formatCode = code.length === 8 ? `${code.slice(0, 4)}-${code.slice(4)}` : code;
+
+  // Codigo grande: en pantallas anchas una linea, en Termux dos bloques apilados
+  let codeRows: string[];
+  if (W >= 53 || formatCode.length <= 5) {
+    codeRows = bigRows(formatCode);
+  } else {
+    const plain = formatCode.replace("-", "");
+    const half = Math.ceil(plain.length / 2);
+    codeRows = [...bigRows(plain.slice(0, half)), ...bigRows(plain.slice(half))];
+  }
+
+  const rows: Row[] = [
+    ...txt("Sigue estos pasos en tu celular:", c.cyan),
+    "",
+    ...txt("1 ▸ Abre WhatsApp", c.white),
+    ...txt("2 ▸ Toca los 3 puntos → Dispositivos vinculados", c.silver),
+    ...txt("3 ▸ Toca \"Vincular con numero de telefono\"", c.silver),
+    ...txt("4 ▸ Ingresa tu numero y escribe el codigo", c.silver),
+    "",
+    ...codeRows.map((r, i): Row => ({ center: `${c.bold}${TITLE_GRAD[i % TITLE_GRAD.length]}${r}${c.rst}` })),
+    "",
+    { center: `${c.gray}CODIGO ▸ ${c.white}${c.bold}${formatCode}${c.rst}` },
+    { center: `${c.gold}expira en 60 segundos${c.rst}` },
+  ];
+
+  await panel("PAIRING REQUIRED", rows, c.cyan);
 }
 
 export async function printConnectedBanner(ownerNumber: string, prefixEnabled: boolean): Promise<void> {
-  if (isTTY()) process.stdout.write("\x1b[?25l");
-  try {
+  if (isTTY()) {
     console.clear();
-    await typeCmd("./ghostsaver --start");
-    drawGhost();
+    await bootSequence("./ghostsaver --start", [], { fast: true, hack: true }); // solo el gag rapido
+    console.clear();
+  }
+  await renderHero({ ready: true });
 
-    // Solo el gag rápido
-    await showHackFail();
+  const pfxStr = prefixEnabled ? `[ ${config.prefix} ] Activo` : "Desactivado";
+  const cmdStr = prefixEnabled ? `${config.prefix}vv` : "vv";
 
-    const pfxStr = prefixEnabled ? `[ ${config.prefix} ] Activo` : "Desactivado";
-    const cmdStr = prefixEnabled ? `${config.prefix}vv` : "vv";
+  await panel("SECURE STATUS", [
+    kv("BOT", "GHOSTSAVER PRO", c.green),
+    kv("STATUS", "ONLINE · PROTEGIDO", c.green),
+    kv("OWNER", `+${ownerNumber}`, c.cyan),
+    kv("PREFIX", pfxStr, c.gold),
+    kv("ENGINE", "ultra-baileys", c.white),
+    kv("SECURITY", "AntiDelete [ON]", c.silver),
+    kv("COMMANDS", cmdStr, c.white),
+  ]);
 
-    drawBox("SECURE STATUS", [
-      `${c.dark}⋆${c.rst} BOT      : ${c.green}GHOSTSAVER PRO${c.rst}`,
-      `${c.dark}⋆${c.rst} STATUS   : ${c.white}ONLINE & PROTECTED${c.rst}`,
-      `${c.dark}⋆${c.rst} OWNER    : ${c.cyan}+${ownerNumber}${c.rst}`,
-      `${c.dark}⋆${c.rst} PREFIX   : ${c.gold}${pfxStr}${c.rst}`,
-      `${c.dark}⋆${c.rst} SECURITY : ${c.gray}AntiDelete [ON]${c.rst}`,
-      `${c.dark}⋆${c.rst} COMMANDS : ${c.white}${cmdStr}${c.rst}`,
-      `${c.dark}⋆${c.rst} DEV      : ${c.gold}BrayanRK (Draven)${c.rst}`
-    ], c.green);
-
-  } finally {
-    if (isTTY()) process.stdout.write("\x1b[?25h");
+  if (isTTY()) {
+    await typeLine("tail -f events.log  # escuchando...");
+    console.log("");
   }
 }
 
 // ═════════════════════════════════════════════════════════════════
-// 6. LÓGICA DE SESIÓN (Intacta)
+// 9. LÓGICA DE SESIÓN (intacta)
 // ═════════════════════════════════════════════════════════════════
 
 function prompt(text: string): Promise<string> {
@@ -389,7 +651,7 @@ export async function getOwnerNumber(): Promise<string> {
       sessionData = JSON.parse(fs.readFileSync(file, "utf8"));
     } catch { /* ignorar */ }
   }
-  
+
   if (!fs.existsSync(path.dirname(file))) {
     fs.mkdirSync(path.dirname(file), { recursive: true });
   }
