@@ -5,7 +5,7 @@
 
 export class Deco {
     static header(title: string): string {
-        return `*_\u{2611}\uFE0F ${title.toUpperCase()} \u{2611}\uFE0F_*\n`;
+        return `*_\u{2611} ${title.toUpperCase()} \u{2611}_*\n`;
     }
 
     static footer(text: string): string {
@@ -42,7 +42,7 @@ export class Deco {
     }
 
     static errorLine(text: string): string {
-        return this.blockquote(`\u{2716}\uFE0F ${text}`);
+        return this.blockquote(`\u{2716} ${text}`);
     }
 
     static infoLine(text: string): string {
