@@ -1,184 +1,50 @@
 import fs from "fs";
+import path from "path";
 import readline from "readline";
 import { useMultiFileAuthState } from "ultra-baileys";
 import config from "../config.js";
 import log from "../logger.js";
 
-const colors = {
-  reset:   '\x1b[0m',
-  white:   '\x1b[38;5;15m',
-  silver:  '\x1b[38;5;250m',
-  gray:    '\x1b[38;5;245m',
-  dark:    '\x1b[38;5;238m',
-  neonG:   '\x1b[38;5;46m',
-  neonG2:  '\x1b[38;5;48m',
-  neonG3:  '\x1b[38;5;49m',
-  neonC:   '\x1b[38;5;51m',
-  red:     '\x1b[38;5;196m',
-  gold:    '\x1b[38;5;220m',
-  dim:     '\x1b[2m',
+// ═════════════════════════════════════════════════════════════════
+// 1. UTILIDADES Y CONSTANTES ANSI (Cero dependencias)
+// ═════════════════════════════════════════════════════════════════
+
+const c = {
+  rst: "\x1b[0m",
+  bold: "\x1b[1m",
+  dim: "\x1b[2m",
+  italic: "\x1b[3m",
+  bgRed: "\x1b[48;5;196m",
+  red: "\x1b[38;5;196m",
+  redDark: "\x1b[38;5;88m",
+  green: "\x1b[38;5;46m",
+  cyan: "\x1b[38;5;51m",
+  blue: "\x1b[38;5;33m",
+  white: "\x1b[38;5;231m",
+  gray: "\x1b[38;5;244m",
+  dark: "\x1b[38;5;236m",
+  gold: "\x1b[38;5;220m"
 };
 
-// ───────────────────────── Ancho dinamico (Termux friendly) ─────────────────────────
+const SPINNER = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 
-const isTTY = Boolean(process.stdout.isTTY);
-const cols = () => process.stdout.columns || 80;
-// Ancho interior del cuadro. El cuadro total mide W + 4, siempre menor al ancho de la terminal.
-const getWidth = () => Math.max(30, Math.min(100, cols() - 5));
+const isTTY = () => Boolean(process.stdout.isTTY);
+
+function getWidth(): number {
+  const cols = process.stdout.columns || 80;
+  return Math.max(40, Math.min(cols, 80)); // Restringido entre 40 y 80 para un HUD limpio
+}
+
+function stripAnsi(str: string): string {
+  return str.replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, "");
+}
 
 const sleep = (ms: number): Promise<void> =>
-  isTTY ? new Promise((resolve) => setTimeout(resolve, ms)) : Promise.resolve();
+  isTTY() ? new Promise((res) => setTimeout(res, ms)) : Promise.resolve();
 
-function stripAnsi(value: string) {
-  return String(value).replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, "");
-}
-
-// Corta texto en varias lineas segun el ancho (con sangria en las continuaciones)
-function wrap(text: string, width: number, indent = 3): string[] {
-  const words = text.split(" ").filter(Boolean);
-  const lines: string[] = [];
-  let cur = "";
-  const limit = () => (lines.length === 0 ? width : Math.max(8, width - indent));
-
-  for (const word of words) {
-    let w = word;
-    while (true) {
-      if (!cur && w.length <= limit()) { cur = w; break; }
-      if (cur && cur.length + 1 + w.length <= limit()) { cur += " " + w; break; }
-      if (cur) { lines.push(cur); cur = ""; continue; }
-      const lim = limit();
-      lines.push(w.slice(0, lim));
-      w = w.slice(lim);
-      if (!w) break;
-    }
-  }
-  if (cur) lines.push(cur);
-  return lines.map((l, i) => (i === 0 ? l : " ".repeat(indent) + l));
-}
-
-// ───────────────────────── Bloques de dibujo ─────────────────────────
-
-function border(kind: "top" | "mid" | "bottom", color: string): string {
-  const W = getWidth();
-  const [l, r] = kind === "top" ? ["╭", "╮"] : kind === "mid" ? ["├", "┤"] : ["╰", "╯"];
-  return `${color}${l}${"─".repeat(W + 2)}${r}${colors.reset}`;
-}
-
-function boxLines(text = "", color = colors.white): string[] {
-  const W = getWidth();
-  const parts = text ? wrap(text, W) : [""];
-  return parts.map(
-    (l) =>
-      `${colors.dark}│${colors.reset} ${color}${l}${colors.reset}${" ".repeat(Math.max(0, W - l.length))} ${colors.dark}│${colors.reset}`
-  );
-}
-
-function centered(text = "", color = colors.white): string {
-  const W = getWidth();
-  const raw = stripAnsi(text);
-  const left = Math.max(0, Math.floor((W - raw.length) / 2));
-  const right = Math.max(0, W - raw.length - left);
-  return `${colors.dark}│${colors.reset} ${" ".repeat(left)}${color}${text}${colors.reset}${" ".repeat(right)} ${colors.dark}│${colors.reset}`;
-}
-
-async function printLines(lines: string[], delay = 0) {
-  for (const l of lines) {
-    console.log(l);
-    if (delay) await sleep(delay);
-  }
-}
-
-function panelLines(title: string, rows: { text: string; color?: string }[] = []): string[] {
-  const out: string[] = [];
-  out.push(border("top", colors.neonG));
-  out.push(...boxLines(title, colors.white));
-  out.push(border("mid", colors.neonC));
-  for (const row of rows) out.push(...boxLines(row.text, row.color || colors.gray));
-  out.push(border("bottom", colors.neonG));
-  return out;
-}
-
-async function panel(title: string, rows: { text: string; color?: string }[] = []) {
-  await printLines(panelLines(title, rows), 22);
-}
-
-// ───────────────────────── Logo ─────────────────────────
-
-const GHOST_ART = [
-  "    ▄████▄    ",
-  "  ▄████████▄  ",
-  " ████████████ ",
-  " ██  ████  ██ ",
-  " ██  ████  ██ ",
-  " ████▀▀▀▀████ ",
-  " ████████████ ",
-  " ██▀██▀▀██▀██ ",
-];
-
-const GHOST_GRAD = [
-  colors.white, colors.white, colors.silver, colors.neonC,
-  colors.neonC, colors.neonG3, colors.neonG2, colors.neonG,
-];
-
-const TITLE_GRAD = [colors.neonG, colors.neonG2, colors.neonG3, colors.neonC, colors.neonC];
-
-// Fuente de bloques 5x5 para el titulo en pantallas anchas
-const FONT: Record<string, string[]> = {
-  G: [" ████", "█    ", "█  ██", "█   █", " ████"],
-  H: ["█   █", "█   █", "█████", "█   █", "█   █"],
-  O: [" ███ ", "█   █", "█   █", "█   █", " ███ "],
-  S: [" ████", "█    ", " ███ ", "    █", "████ "],
-  T: ["█████", "  █  ", "  █  ", "  █  ", "  █  "],
-  A: [" ███ ", "█   █", "█████", "█   █", "█   █"],
-  V: ["█   █", "█   █", "█   █", " █ █ ", "  █  "],
-  E: ["█████", "█    ", "████ ", "█    ", "█████"],
-  R: ["████ ", "█   █", "████ ", "█  █ ", "█   █"],
-};
-
-function bigWord(word: string): string[] {
-  return [0, 1, 2, 3, 4].map((r) =>
-    word.split("").map((ch) => FONT[ch][r]).join(" ")
-  );
-}
-
-async function renderHero(sessionReady = false) {
-  const W = getWidth();
-  const wide = W >= 64;
-  const out: string[] = [];
-
-  out.push(border("top", colors.neonG));
-  out.push(centered(""));
-  GHOST_ART.forEach((l, i) => out.push(centered(l, GHOST_GRAD[i])));
-  out.push(centered(""));
-
-  if (wide) {
-    bigWord("GHOSTSAVER").forEach((l, i) => out.push(centered(l, TITLE_GRAD[i])));
-  } else {
-    out.push(centered("G H O S T S A V E R", colors.neonG));
-    out.push(centered("─".repeat(Math.min(19, W)), colors.dark));
-  }
-
-  out.push(centered(""));
-  out.push(centered("WhatsApp Session Guardian", colors.neonC));
-  out.push(border("mid", colors.neonC));
-  out.push(centered("Developed by BrayanRK", colors.gold));
-  out.push(centered(sessionReady ? "Sesion detectada" : "Esperando vinculacion", colors.gray));
-
-  const state = sessionReady ? "ONLINE" : "BOOT";
-  const status =
-    W >= 44
-      ? `${colors.neonG}● ${state}${colors.reset}   ${colors.gray}◆ GHOSTSAVER PRO   ◆ PROTECTED${colors.reset}`
-      : `${colors.neonG}● ${state}${colors.reset}   ${colors.gray}◆ PROTECTED${colors.reset}`;
-  out.push(centered(status));
-  out.push(border("bottom", colors.neonG));
-  out.push("");
-
-  await printLines(out, 28); // el banner baja linea por linea
-}
-
-// ───────────────────────── Pantalla de carga ─────────────────────────
-
-const FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+// ═════════════════════════════════════════════════════════════════
+// 2. TEXTOS Y HUMOR MIGAJERO
+// ═════════════════════════════════════════════════════════════════
 
 const LOADING_MSGS = [
   "Saltando firewall del corazon",
@@ -199,267 +65,322 @@ const LOADING_MSGS = [
 ];
 
 const HACK_TARGET = "Hackeando el corazon de ella";
+
 const HACK_ERRORS: string[][] = [
-  [
-    "ACCESO DENEGADO: no se pudo hackear el corazon de ella",
-    "Causa: amor imposible (error 404: correspondencia no encontrada)",
-  ],
-  [
-    "FALLO CRITICO: firewall emocional demasiado fuerte",
-    "Causa: ya tiene novio (error 403: forbidden)",
-  ],
-  [
-    "CONNECTION TIMEOUT: lleva 3 horas en linea sin responderte",
-    "Causa: visto ignorado (error 408: request timeout)",
-  ],
-  [
-    "INTRUSION BLOQUEADA: ella solo te ve como amigo",
-    "Causa: friendzone.exe no tiene parche disponible",
-  ],
-  [
-    "HACKEO FALLIDO: clave incorrecta en intento 47",
-    "Causa: el corazon de ella requiere autenticacion de dos factores",
-  ],
-  [
-    "SISTEMA CAIDO: tu crush esta sin conexion desde hace 6 horas",
-    "Causa: te tiene bloqueado (error 403: access denied)",
-  ],
-  [
-    "ROOTKIT RECHAZADO: demasiadas capas de indiferencia",
-    "Causa: no pudo bypasear el modo avion sentimental",
-  ],
-  [
-    "PROCESO ABORTADO: le mando foto a otro",
-    "Causa: corazon.exe no es de codigo abierto",
-  ],
-  [
-    "BUFFER OVERFLOW: demasiados 'hola' sin respuesta",
-    "Causa: memoria sentimental llena de otro",
-  ],
-  [
-    "NULL POINTER EXCEPTION: su corazon no apunta a ti",
-    "Causa: referencia invalida (error 500: internal heart error)",
-  ],
-  [
-    "SEGFAULT: intento acceder a memoria protegida",
-    "Causa: sus sentimientos estan en modo solo lectura",
-  ],
-  [
-    "KERNEL PANIC: el amor unilateral derumbo el sistema",
-    "Causa: no se puede amar por los dos (error 501: not implemented)",
-  ],
+  ["ACCESO DENEGADO: no se pudo hackear el corazon de ella", "Causa: amor imposible (error 404: correspondencia no encontrada)"],
+  ["FALLO CRITICO: firewall emocional demasiado fuerte", "Causa: ya tiene novio (error 403: forbidden)"],
+  ["CONNECTION TIMEOUT: lleva 3 horas en linea sin responderte", "Causa: visto ignorado (error 408: request timeout)"],
+  ["INTRUSION BLOQUEADA: ella solo te ve como amigo", "Causa: friendzone.exe no tiene parche disponible"],
+  ["HACKEO FALLIDO: clave incorrecta en intento 47", "Causa: el corazon de ella requiere autenticacion de dos factores"],
+  ["SISTEMA CAIDO: tu crush esta sin conexion desde hace 6 horas", "Causa: te tiene bloqueado (error 403: access denied)"],
+  ["ROOTKIT RECHAZADO: demasiadas capas de indiferencia", "Causa: no pudo bypasear el modo avion sentimental"],
+  ["PROCESO ABORTADO: le mando foto a otro", "Causa: corazon.exe no es de codigo abierto"],
+  ["BUFFER OVERFLOW: demasiados 'hola' sin respuesta", "Causa: memoria sentimental llena de otro"],
+  ["NULL POINTER EXCEPTION: su corazon no apunta a ti", "Causa: referencia invalida (error 500: internal heart error)"],
+  ["SEGFAULT: intento acceder a memoria protegida", "Causa: sus sentimientos estan en modo solo lectura"],
+  ["KERNEL PANIC: el amor unilateral derumbo el sistema", "Causa: no se puede amar por los dos (error 501: not implemented)"],
 ];
 
 function pickRandom<T>(arr: T[], n: number): T[] {
-  const a = [...arr];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a.slice(0, n);
+  const shuffled = [...arr].sort(() => 0.5 - Math.random());
+  return shuffled.slice(0, n);
 }
 
-// Muestra directamente el fallo rojo sin secuencia larga (para cuando ya hay sesion)
-async function quickHackFail() {
-  if (!isTTY) return;
-  process.stdout.write("\x1b[?25l");
-  try {
-    console.log("");
-    await runStep(HACK_TARGET, true);
-    console.log("");
-    const errors = HACK_ERRORS[Math.floor(Math.random() * HACK_ERRORS.length)];
-    for (const err of errors) {
-      wrap(err, cols() - 7, 2).forEach((l, i) => {
-        console.log(`  ${colors.red}${i === 0 ? "✖" : " "} ${l}${colors.reset}`);
-      });
+// ═════════════════════════════════════════════════════════════════
+// 3. COMPONENTES VISUALES
+// ═════════════════════════════════════════════════════════════════
+
+async function typeCmd(cmd: string) {
+  if (!isTTY()) {
+    console.log(`root@ghostsaver:~# ${cmd}`);
+    return;
+  }
+  process.stdout.write(`\n  ${c.green}${c.bold}root@ghostsaver${c.rst}:${c.cyan}~${c.rst}# `);
+  await sleep(200);
+  for (const char of cmd) {
+    process.stdout.write(char);
+    await sleep(25 + Math.random() * 40);
+  }
+  await sleep(300);
+  console.log("\n");
+}
+
+function drawGhost() {
+  const w = getWidth();
+  const narrow = w < 50;
+
+  const GHOST = [
+    "     ▄▄████████▄▄     ",
+    "   ▄██████████████▄   ",
+    "  ██████████████████  ",
+    "  ██▀▀▀████████▀▀▀██  ",
+    "  ██ ▄ █ ██████ ▄ █ ██  ",
+    "  ██████████████████  ",
+    "  ██████▀▀▀▀▀▀██████  ",
+    "  ██████████████████  ",
+    "  ▀██████▀▀▀▀██████▀  ",
+    "    ▀▀▀        ▀▀▀    "
+  ];
+  
+  const GRADIENT = [c.white, c.white, c.cyan, c.cyan, c.cyan, c.blue, c.blue, c.green, c.green, c.green];
+
+  console.log("");
+  for (let i = 0; i < GHOST.length; i++) {
+    const ghostLine = `${GRADIENT[i]}${GHOST[i]}${c.rst}`;
+    
+    if (narrow) {
+      const pad = Math.max(0, Math.floor((w - 22) / 2));
+      console.log(" ".repeat(pad) + ghostLine);
+    } else {
+      // Wide layout: Ghost on left, Title on right
+      const titleLines = [
+        "",
+        "",
+        `  ${c.bold}${c.white}G H O S T S A V E R${c.rst}`,
+        `  ${c.cyan}WhatsApp Session Guardian${c.rst}`,
+        `  ${c.dark}─────────────────────────${c.rst}`,
+        `  ${c.gold}PRO VERSION${c.rst}`,
+        `  ${c.gray}github.com/BrayanRK${c.rst}`,
+        "",
+        "",
+        ""
+      ];
+      console.log(`    ${ghostLine}${titleLines[i]}`);
     }
-    await sleep(2200);
-  } finally {
-    process.stdout.write("\x1b[?25h");
+  }
+
+  if (narrow) {
+    console.log(`\n  ${c.bold}${c.white}GHOSTSAVER PRO${c.rst}`);
+    console.log(`  ${c.cyan}WhatsApp Session Guardian${c.rst}`);
+    console.log(`  ${c.gray}github.com/BrayanRK${c.rst}\n`);
+  } else {
+    console.log("");
   }
 }
 
-// Una linea de progreso que se adapta al ancho de la terminal
-function stepLine(icon: string, iconColor: string, label: string, pct: number, barColor: string, labelColor = colors.white): string {
-  const c = cols() - 1;
-  const pctStr = `${pct}%`.padStart(4);
-  const barW = Math.min(18, c - 9 - label.length - 3);
-  const useBar = barW >= 6;
-
-  let text = label;
-  if (!useBar) {
-    const max = c - 9;
-    if (text.length > max) text = text.slice(0, Math.max(1, max - 1)) + "…";
+function drawBox(title: string, lines: string[], color = c.cyan) {
+  const w = getWidth();
+  const cleanTitle = stripAnsi(title);
+  const topPad = Math.max(0, w - cleanTitle.length - 8);
+  
+  console.log(`  ${color}╭─ [ ${c.white}${c.bold}${title}${c.rst}${color} ] ${"─".repeat(topPad)}╮${c.rst}`);
+  
+  for (const line of lines) {
+    const clean = stripAnsi(line);
+    const pad = Math.max(0, w - clean.length - 4);
+    console.log(`  ${color}│${c.rst} ${line} ${" ".repeat(pad)}${color}│${c.rst}`);
   }
-
-  const filled = useBar ? Math.round((barW * pct) / 100) : 0;
-  const bar = useBar
-    ? ` ${colors.dark}[${barColor}${"█".repeat(filled)}${colors.gray}${"░".repeat(barW - filled)}${colors.dark}]${colors.reset}`
-    : "";
-
-  return `  ${iconColor}${icon}${colors.reset} ${labelColor}${text}${colors.reset}${bar} ${colors.gold}${pctStr}${colors.reset}`;
+  
+  console.log(`  ${color}╰${"─".repeat(w - 2)}╯${c.rst}\n`);
 }
 
-async function runStep(label: string, fail = false) {
-  const tick = 50;
-  const dur = fail ? 2600 : 650 + Math.random() * 700;
-  const ticks = Math.ceil(dur / tick);
-  const target = fail ? 99 : 100;
+// ═════════════════════════════════════════════════════════════════
+// 4. MOTOR DE CARGA Y HACKEO
+// ═════════════════════════════════════════════════════════════════
+
+async function runStep(label: string, isFail = false) {
+  if (!isTTY()) {
+    console.log(`  [ OK ] ${label}`);
+    return;
+  }
+
+  const w = getWidth();
+  const target = isFail ? 99 : 100;
+  const tickLimit = isFail ? 35 : 20;
   let f = 0;
 
-  for (let t = 0; t <= ticks; t++) {
-    const pct = Math.round((t / ticks) * target);
-    process.stdout.write(`\r\x1b[2K${stepLine(FRAMES[f++ % FRAMES.length], colors.neonC, label, pct, colors.neonG)}`);
-    await sleep(tick);
+  for (let tick = 0; tick <= tickLimit; tick++) {
+    const pct = Math.floor((tick / tickLimit) * target);
+    const frame = SPINNER[f++ % SPINNER.length];
+    
+    // Auto-truncate label if terminal is very narrow
+    let safeLabel = label;
+    const fixedWidth = 10 + 9; // "[X] " + " [ XXX% ]"
+    if (safeLabel.length + fixedWidth > w - 2) {
+      safeLabel = safeLabel.substring(0, w - fixedWidth - 5) + "...";
+    }
+
+    const dotsCount = Math.max(1, (w - 2) - (fixedWidth + safeLabel.length));
+    const dots = c.dark + ".".repeat(dotsCount) + c.rst;
+    const pctStr = pct.toString().padStart(3, " ");
+    const pctColor = pct === 100 ? c.green : c.gold;
+
+    process.stdout.write(`\r\x1b[2K  ${c.cyan}[${c.white}${frame}${c.cyan}]${c.rst} ${safeLabel} ${dots} ${c.cyan}[ ${pctColor}${pctStr}% ${c.cyan}]${c.rst}`);
+    await sleep(isFail ? 40 : 25);
   }
 
-  if (fail) {
-    // se queda trabado en 99% antes de fallar
-    for (let t = 0; t < 24; t++) {
-      process.stdout.write(`\r\x1b[2K${stepLine(FRAMES[f++ % FRAMES.length], colors.neonC, label, 99, colors.neonG)}`);
-      await sleep(tick);
+  if (isFail) {
+    // Hang at 99%
+    const safeLabel = label.length + 19 > w - 2 ? label.substring(0, w - 24) + "..." : label;
+    const dotsCount = Math.max(1, (w - 2) - (19 + safeLabel.length));
+    const dots = c.dark + ".".repeat(dotsCount) + c.rst;
+
+    for (let j = 0; j < 12; j++) {
+      const spin = SPINNER[(f + j) % SPINNER.length];
+      process.stdout.write(`\r\x1b[2K  ${c.red}[${c.white}${spin}${c.red}]${c.rst} ${c.red}${c.bold}${safeLabel}${c.rst} ${dots} ${c.red}[ ${c.white} 99% ${c.red}]${c.rst}`);
+      await sleep(150);
     }
-    process.stdout.write(`\r\x1b[2K${stepLine("✖", colors.red, label, 99, colors.red, colors.red)}\n`);
   } else {
-    process.stdout.write(`\r\x1b[2K${stepLine("✔", colors.neonG, label, 100, colors.neonG)}\n`);
+    // Success finish
+    const safeLabel = label.length + 19 > w - 2 ? label.substring(0, w - 24) + "..." : label;
+    const dotsCount = Math.max(1, (w - 2) - (19 + safeLabel.length));
+    const dots = c.dark + ".".repeat(dotsCount) + c.rst;
+    process.stdout.write(`\r\x1b[2K  ${c.dark}[ ${c.green}OK${c.dark} ]${c.rst} ${c.white}${safeLabel}${c.rst} ${dots} ${c.dark}[${c.green}100%${c.dark}]${c.rst}\n`);
   }
 }
 
-async function loadingScreen(task: string, opts: { steps?: number; hackFail?: boolean } = {}) {
-  if (!isTTY) return; // en pm2 / logs no animamos nada
-
-  const steps = opts.steps ?? 4;
-  process.stdout.write("\x1b[?25l"); // ocultar cursor
-
-  try {
-    console.log("");
-    for (const l of wrap(task, cols() - 5, 2)) console.log(`  ${colors.neonC}${l}${colors.reset}`);
-    console.log("");
-
-    for (const msg of pickRandom(LOADING_MSGS, steps)) await runStep(msg);
-
-    if (opts.hackFail) {
-      await runStep(HACK_TARGET, true);
-      console.log("");
-      const errors = HACK_ERRORS[Math.floor(Math.random() * HACK_ERRORS.length)];
-      for (const err of errors) {
-        wrap(err, cols() - 7, 2).forEach((l, i) => {
-          console.log(`  ${colors.red}${i === 0 ? "✖" : " "} ${l}${colors.reset}`);
-        });
-      }
-      await sleep(2200);
-    } else {
-      await sleep(350);
-    }
-  } finally {
-    process.stdout.write("\x1b[?25h"); // mostrar cursor
+async function showHackFail() {
+  await runStep(HACK_TARGET, true);
+  if (!isTTY()) {
+    console.log(`  [FAIL] ${HACK_TARGET}`);
+    return;
   }
+
+  const [err1, err2] = HACK_ERRORS[Math.floor(Math.random() * HACK_ERRORS.length)];
+  
+  // Glitch flash
+  for (let i = 0; i < 3; i++) {
+    process.stdout.write(`\r\x1b[2K  ${c.bgRed}${c.white}${c.bold} [ SYSTEM FAILURE - INTRUSION REJECTED ] ${c.rst}`);
+    await sleep(60);
+    process.stdout.write(`\r\x1b[2K`);
+    await sleep(50);
+  }
+  
+  const w = getWidth();
+  const safeLabel = HACK_TARGET.length + 19 > w - 2 ? HACK_TARGET.substring(0, w - 24) + "..." : HACK_TARGET;
+  const dotsCount = Math.max(1, (w - 2) - (19 + safeLabel.length));
+  const dots = c.dark + ".".repeat(dotsCount) + c.rst;
+
+  process.stdout.write(`\r\x1b[2K  ${c.redDark}[${c.red}FAIL${c.redDark}]${c.rst} ${c.red}${c.bold}${safeLabel}${c.rst} ${dots} ${c.redDark}[${c.red}ERR!${c.redDark}]${c.rst}\n`);
+  console.log(`\n  ${c.red}✖  ${c.bold}${err1}${c.rst}`);
+  console.log(`     ${c.gray}${err2}${c.rst}\n`);
+  await sleep(1000);
 }
 
-// ───────────────────────── Banners publicos ─────────────────────────
+// ═════════════════════════════════════════════════════════════════
+// 5. EXPORTS PÚBLICOS (BANNERS)
+// ═════════════════════════════════════════════════════════════════
 
 export async function printSetupBanner(): Promise<void> {
-  console.clear();
-  await loadingScreen("Iniciando core de GhostSaver", { steps: 5, hackFail: true });
-  console.clear();
-  await renderHero(false);
-  await panel("Inicializacion del Guardian", [
-    { text: "▸  Ingresa tu numero para vincular la sesion de WhatsApp", color: colors.neonC },
-    { text: "▸  Solo necesitas hacer esto UNA VEZ.", color: colors.gold },
-  ]);
-  console.log("");
+  if (isTTY()) process.stdout.write("\x1b[?25l"); // Hide cursor
+  try {
+    console.clear();
+    await typeCmd("./ghostsaver --init");
+    drawGhost();
+    
+    for (const msg of pickRandom(LOADING_MSGS, 5)) {
+      await runStep(msg);
+    }
+    await showHackFail();
+
+    drawBox("INITIAL SETUP", [
+      `${c.cyan}▸${c.rst} Ingresa tu numero para vincular WhatsApp`,
+      `${c.gold}▸${c.rst} Solo necesitas hacer esto UNA VEZ.`
+    ], c.blue);
+
+  } finally {
+    if (isTTY()) process.stdout.write("\x1b[?25h"); // Show cursor
+  }
 }
 
 export async function printPairingBanner(code: string): Promise<void> {
-  console.clear();
-  await loadingScreen("Generando codigo de vinculacion", { steps: 3 });
-  console.clear();
-  await renderHero(false);
-  const formatCode = code.length === 8 ? code.slice(0, 4) + "-" + code.slice(4) : code;
-  await panel("Vinculacion de dispositivo", [
-    { text: "Sigue estos pasos en tu celular:",         color: colors.neonC  },
-    { text: "",                                         color: colors.reset  },
-    { text: "  1 ▸  Abre WhatsApp",                    color: colors.white  },
-    { text: "  2 ▸  Toca los 3 puntos  →  Dispositivos vinculados", color: colors.silver },
-    { text: "  3 ▸  Toca  \"Vincular con numero de telefono\"",       color: colors.silver },
-    { text: "  4 ▸  Ingresa tu numero y espera el codigo",           color: colors.silver },
-    { text: "",                                         color: colors.reset  },
-    { text: `  ►  CODIGO:  ${formatCode}`,             color: colors.neonG  },
-    { text: "     (el codigo expira en 60 segundos)",  color: colors.gold   },
-  ]);
-  console.log("");
-}
+  if (isTTY()) process.stdout.write("\x1b[?25l");
+  try {
+    console.clear();
+    await typeCmd("./ghostsaver --pair");
+    drawGhost();
 
+    for (const msg of pickRandom(LOADING_MSGS, 3)) {
+      await runStep(msg);
+    }
+    console.log("");
+
+    const formatCode = code.length === 8 ? `${code.slice(0,4)}-${code.slice(4)}` : code;
+    
+    drawBox("PAIRING REQUIRED", [
+      `${c.white}Sigue estos pasos en tu celular principal:${c.rst}`,
+      "",
+      `  ${c.cyan}1${c.rst} ▸ Abre WhatsApp`,
+      `  ${c.cyan}2${c.rst} ▸ Toca los 3 puntos → Dispositivos vinculados`,
+      `  ${c.cyan}3${c.rst} ▸ Toca "Vincular con numero de telefono"`,
+      `  ${c.cyan}4${c.rst} ▸ Ingresa tu numero y espera el codigo`,
+      "",
+      `  ► ${c.bold}${c.green}CODIGO: ${formatCode}${c.rst}`,
+      `    ${c.gold}(El codigo expira en 60 segundos)${c.rst}`
+    ], c.cyan);
+
+  } finally {
+    if (isTTY()) process.stdout.write("\x1b[?25h");
+  }
+}
 
 export async function printConnectedBanner(ownerNumber: string, prefixEnabled: boolean): Promise<void> {
-  console.clear();
-  await renderHero(true);
-  // Solo muestra el fallo rojo rapido (sin la secuencia larga de pasos)
-  await quickHackFail();
-  console.clear();
-  await renderHero(true);
-  const prefixStr = prefixEnabled ? `[ ${config.prefix} ] Activo` : "Desactivado";
-  await panel("Conexion establecida", [
-    { text: "Bot: GHOSTSAVER PRO", color: colors.neonG },
-    { text: "Estado: ONLINE y PROTEGIDO", color: colors.white },
-    { text: `Owner: +${ownerNumber}`, color: colors.neonC },
-    { text: `Prefijo: ${prefixStr}`, color: colors.gold },
-    { text: `Seguridad: AntiDelete [Activo] | Comandos: ${prefixStr}vv`, color: colors.gray },
-    { text: "Dev: BrayanRK", color: colors.neonG },
-  ]);
-  console.log("");
+  if (isTTY()) process.stdout.write("\x1b[?25l");
+  try {
+    console.clear();
+    await typeCmd("./ghostsaver --start");
+    drawGhost();
+
+    // Solo el gag rápido
+    await showHackFail();
+
+    const pfxStr = prefixEnabled ? `[ ${config.prefix} ] Activo` : "Desactivado";
+    const cmdStr = prefixEnabled ? `${config.prefix}vv` : "vv";
+
+    drawBox("SECURE STATUS", [
+      `${c.dark}⋆${c.rst} BOT      : ${c.green}GHOSTSAVER PRO${c.rst}`,
+      `${c.dark}⋆${c.rst} STATUS   : ${c.white}ONLINE & PROTECTED${c.rst}`,
+      `${c.dark}⋆${c.rst} OWNER    : ${c.cyan}+${ownerNumber}${c.rst}`,
+      `${c.dark}⋆${c.rst} PREFIX   : ${c.gold}${pfxStr}${c.rst}`,
+      `${c.dark}⋆${c.rst} SECURITY : ${c.gray}AntiDelete [ON]${c.rst}`,
+      `${c.dark}⋆${c.rst} COMMANDS : ${c.white}${cmdStr}${c.rst}`,
+      `${c.dark}⋆${c.rst} DEV      : ${c.gold}BrayanRK (Draven)${c.rst}`
+    ], c.green);
+
+  } finally {
+    if (isTTY()) process.stdout.write("\x1b[?25h");
+  }
 }
 
-// ───────────────────────── Sesion / Auth ─────────────────────────
+// ═════════════════════════════════════════════════════════════════
+// 6. LÓGICA DE SESIÓN (Intacta)
+// ═════════════════════════════════════════════════════════════════
 
 function prompt(text: string): Promise<string> {
   return new Promise((resolve) => {
     const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-    rl.question(text, (ans) => { rl.close(); resolve(ans.trim()); });
+    rl.question(text, (ans) => {
+      rl.close();
+      resolve(ans.trim());
+    });
   });
 }
 
 export async function getOwnerNumber(): Promise<string> {
-  const file = config.sessionFile;
-  if (fs.existsSync(file)) {
-    try {
-      const d = JSON.parse(fs.readFileSync(file, "utf8")) as { ownerNumber?: string };
-      if (d.ownerNumber) return d.ownerNumber;
-    } catch { /* corrupto, re-preguntar */ }
+  const superOwner = config.superOwnerJid as string;
+  if (superOwner) {
+    const n = superOwner.split("@")[0];
+    if (n && n !== "5732230904061") return n;
   }
+  const f = path.join(process.cwd(), config.sessionDir, "owner.txt");
+  if (fs.existsSync(f)) return fs.readFileSync(f, "utf-8").trim();
 
-  await printSetupBanner();
-
-  let number = "";
-  while (!number || !/^\d{10,15}$/.test(number)) {
-    number = await prompt(
-      `  ${colors.neonG}➤${colors.white} Tu numero (codigo de pais, sin +):${colors.reset}\n  ${colors.gold}Ej: 5732XXXXXXXX${colors.reset} > `
-    );
-    if (!/^\d{10,15}$/.test(number))
-      console.log(`\n  ${colors.red}✖ Numero invalido.${colors.reset}\n`);
+  let num = "";
+  while (!num) {
+    num = await prompt(`  ${c.cyan}▸ Ingresa tu numero (con cod. pais, ej: 57322...): ${c.rst}`);
+    num = num.replace(/\D/g, "");
   }
-
-  fs.writeFileSync(file, JSON.stringify({ ownerNumber: number }, null, 2));
-  console.log(`\n  ${colors.neonG}✔ Guardado: +${number}${colors.reset}`);
-  console.log(`  ${colors.gray}${colors.dim}(No te volvera a preguntar)\n${colors.reset}`);
-
-  return number;
+  if (!fs.existsSync(path.dirname(f))) fs.mkdirSync(path.dirname(f), { recursive: true });
+  fs.writeFileSync(f, num, "utf-8");
+  return num;
 }
 
 export function clearSession(): void {
-  try {
-    const dir = config.sessionDir;
-    if (fs.existsSync(dir)) {
-      fs.rmSync(dir, { recursive: true, force: true });
-      log.warn("Sesion borrada.");
-    }
-  } catch (e) {
-    log.error("No se pudo borrar sesion:", (e as Error).message);
-  }
+  const p = path.resolve(process.cwd(), config.sessionDir);
+  if (fs.existsSync(p)) fs.rmSync(p, { recursive: true, force: true });
 }
 
 export async function loadAuthState(): Promise<ReturnType<typeof useMultiFileAuthState>> {
-  const dir = config.sessionDir;
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  return await useMultiFileAuthState(dir);
+  const p = path.resolve(process.cwd(), config.sessionDir);
+  return await useMultiFileAuthState(p);
 }
