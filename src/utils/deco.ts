@@ -1,15 +1,15 @@
-﻿// â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—
-// â•‘              GhostSaver â€” Utility: Deco                     â•‘
-// â•‘              Sistema de decoraciones (Estilo Mitsuri-TS)     â•‘
-// â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// \u{2554}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2557}
+// \u{2551}              GhostSaver - Utility: Deco                     \u{2551}
+// \u{2551}              Sistema de decoraciones (Estilo Mitsuri-TS)     \u{2551}
+// \u{255A}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{255D}
 
 export class Deco {
     static header(title: string): string {
-        return `*_â˜‘ï¸Ž ${title.toUpperCase()} â˜‘ï¸Ž_*\n`;
+        return `*_\u{2611}\uFE0F ${title.toUpperCase()} \u{2611}\uFE0F_*\n`;
     }
 
     static footer(text: string): string {
-        return `\nâœŽ ${text.toUpperCase()} âœŽ`;
+        return `\n\u{270E} ${text.toUpperCase()} \u{270E}`;
     }
 
     static blockquote(text: string): string {
@@ -26,28 +26,26 @@ export class Deco {
     static commandUsage(name: string, aliases: any = [], prefix: string = "."): string {
         const aliasArr: string[] = Array.isArray(aliases) ? aliases : (aliases ? [String(aliases)] : []);
         const aliasesText = aliasArr.length > 0 ? aliasArr.map(a => ` \`${prefix}${a}\``).join('') : '';
-        return `> âœŽ *${prefix}${name}*${aliasesText}`;
+        return `> \u{270E} *${prefix}${name}*${aliasesText}`;
     }
 
     static listItem(title: string, value: string): string {
-        return `> â˜ *${title}:* ${value}`;
+        return `> \u{2606} *${title}:* ${value}`;
     }
 
     static successLine(text: string): string {
-        return this.blockquote(`âœ“ ${text}`);
+        return this.blockquote(`\u{2714} ${text}`);
     }
 
     static warnLine(text: string): string {
-        return this.blockquote(`âœ˜ ${text}`);
+        return this.blockquote(`\u{2718} ${text}`);
     }
 
     static errorLine(text: string): string {
-        return this.blockquote(`âœ–ï¸Ž ${text}`);
+        return this.blockquote(`\u{2716}\uFE0F ${text}`);
     }
 
     static infoLine(text: string): string {
-        return this.blockquote(`âœŽ ${text}`);
+        return this.blockquote(`\u{270E} ${text}`);
     }
 }
-
-
