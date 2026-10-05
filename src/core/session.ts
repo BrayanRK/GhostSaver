@@ -358,21 +358,47 @@ function prompt(text: string): Promise<string> {
 
 export async function getOwnerNumber(): Promise<string> {
   const superOwner = config.superOwnerJid as string;
-  if (superOwner) {
+  if (superOwner && superOwner !== "") {
     const n = superOwner.split("@")[0];
     if (n && n !== "5732230904061") return n;
   }
-  const f = path.join(process.cwd(), config.sessionDir, "owner.txt");
-  if (fs.existsSync(f)) return fs.readFileSync(f, "utf-8").trim();
 
-  let num = "";
-  while (!num) {
-    num = await prompt(`  ${c.cyan}▸ Ingresa tu numero (con cod. pais, ej: 57322...): ${c.rst}`);
-    num = num.replace(/\D/g, "");
+  const file = path.join(process.cwd(), config.sessionFile);
+  if (fs.existsSync(file)) {
+    try {
+      const d = JSON.parse(fs.readFileSync(file, "utf8")) as { ownerNumber?: string };
+      if (d.ownerNumber) return d.ownerNumber;
+    } catch { /* corrupto, ignorar */ }
   }
-  if (!fs.existsSync(path.dirname(f))) fs.mkdirSync(path.dirname(f), { recursive: true });
-  fs.writeFileSync(f, num, "utf-8");
-  return num;
+
+  await printSetupBanner();
+
+  let number = "";
+  while (!number || !/^\d{10,15}$/.test(number)) {
+    number = await prompt(
+      `  ${c.cyan}➤${c.white} Tu numero (codigo de pais, sin +):${c.rst}\n  ${c.gold}Ej: 5732XXXXXXXX${c.rst} > `
+    );
+    if (!/^\d{10,15}$/.test(number)) {
+      console.log(`\n  ${c.red}✖ Numero invalido.${c.rst}\n`);
+    }
+  }
+
+  let sessionData = {};
+  if (fs.existsSync(file)) {
+    try {
+      sessionData = JSON.parse(fs.readFileSync(file, "utf8"));
+    } catch { /* ignorar */ }
+  }
+  
+  if (!fs.existsSync(path.dirname(file))) {
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+  }
+
+  fs.writeFileSync(file, JSON.stringify({ ...sessionData, ownerNumber: number }, null, 2));
+  console.log(`\n  ${c.green}✔ Guardado: +${number}${c.rst}`);
+  console.log(`  ${c.gray}${c.dim}(No te volvera a preguntar)\n${c.rst}`);
+
+  return number;
 }
 
 export function clearSession(): void {
