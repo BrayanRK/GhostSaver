@@ -541,8 +541,7 @@ export async function printSetupBanner(): Promise<void> {
 export async function printPairingBanner(code: string): Promise<void> {
   if (isTTY()) {
     console.clear();
-    await bootSequence("./ghostsaver --pair", pickRandom(LOADING_MSGS, 3));
-    console.clear();
+    // Animación eliminada para que el código cargue instantáneamente y no se pierda la conexión
   }
   // Pairing: version compacta (sin fantasma) para que el codigo quede siempre visible
   await renderHero({ ghost: false, bigTitle: getWidth() >= 59 });
@@ -626,10 +625,24 @@ export async function getOwnerNumber(): Promise<string> {
   }
 
   const file = path.join(process.cwd(), config.sessionFile);
+  const credsFile = path.join(process.cwd(), config.sessionDir, "creds.json");
+  const isPaired = fs.existsSync(credsFile);
+
   if (fs.existsSync(file)) {
     try {
       const d = JSON.parse(fs.readFileSync(file, "utf8")) as { ownerNumber?: string };
-      if (d.ownerNumber) return d.ownerNumber;
+      if (d.ownerNumber) {
+        if (isPaired) {
+          return d.ownerNumber;
+        } else {
+          const ans = await prompt(
+            `\n  ${c.gold}⚠ Se encontro un intento pendiente con el numero: +${d.ownerNumber}${c.rst}\n  ${c.cyan}¿Deseas volver a intentar vincular con este mismo numero? (S/n): ${c.rst}`
+          );
+          if (ans.trim().toLowerCase() !== "n") {
+            return d.ownerNumber;
+          }
+        }
+      }
     } catch { /* corrupto, ignorar */ }
   }
 
@@ -638,10 +651,10 @@ export async function getOwnerNumber(): Promise<string> {
   let number = "";
   while (!number || !/^\d{10,15}$/.test(number)) {
     number = await prompt(
-      `  ${c.cyan}➤${c.white} Tu numero (codigo de pais, sin +):${c.rst}\n  ${c.gold}Ej: 5732XXXXXXXX${c.rst} > `
+      `  ${c.cyan}➤${c.white} Tu numero (todo pegado, con cod. de pais, sin el +):${c.rst}\n  ${c.gold}Ejemplo: 57322...${c.rst} > `
     );
     if (!/^\d{10,15}$/.test(number)) {
-      console.log(`\n  ${c.red}✖ Numero invalido.${c.rst}\n`);
+      console.log(`\n  ${c.red}✖ Numero invalido. Usa solo numeros.${c.rst}\n`);
     }
   }
 
@@ -658,7 +671,7 @@ export async function getOwnerNumber(): Promise<string> {
 
   fs.writeFileSync(file, JSON.stringify({ ...sessionData, ownerNumber: number }, null, 2));
   console.log(`\n  ${c.green}✔ Guardado: +${number}${c.rst}`);
-  console.log(`  ${c.gray}${c.dim}(No te volvera a preguntar)\n${c.rst}`);
+  console.log(`  ${c.gray}${c.dim}(Si falla, te preguntara la proxima vez)\n${c.rst}`);
 
   return number;
 }

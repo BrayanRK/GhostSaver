@@ -99,6 +99,11 @@ async function startBot(): Promise<void> {
     logger,
     auth: state,
     printQRInTerminal: false,
+    connectTimeoutMs: 60000,
+    defaultQueryTimeoutMs: 0,
+    keepAliveIntervalMs: 10000,
+    emitOwnEvents: true,
+    retryRequestDelayMs: 250,
     getMessage: async (key) => {
       return msgStore.get(key.id!)?.message ?? { conversation: "" };
     },
